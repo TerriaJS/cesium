@@ -12,8 +12,10 @@ defineSuite([
         'Core/loadWithXhr',
         'Core/queryToObject',
         'Core/Rectangle',
+        'Core/RequestErrorEvent',
         'Core/WebMercatorProjection',
         'Core/WebMercatorTilingScheme',
+        'ThirdParty/when',
         'Scene/DiscardMissingTileImagePolicy',
         'Scene/Imagery',
         'Scene/ImageryLayer',
@@ -35,8 +37,10 @@ defineSuite([
         loadWithXhr,
         queryToObject,
         Rectangle,
+        RequestErrorEvent,
         WebMercatorProjection,
         WebMercatorTilingScheme,
+        when,
         DiscardMissingTileImagePolicy,
         Imagery,
         ImageryLayer,
@@ -447,6 +451,135 @@ defineSuite([
             return provider.requestImage(0, 0, 0).then(function(image) {
                 expect(image).toBeInstanceOf(Image);
             });
+        });
+    });
+
+    it('requests a token if one is not specified but requestNewToken is specified', function() {
+        var baseUrl = '//tiledArcGisMapServer.invalid';
+
+        var tokenNotPresent = {'error':{'code':499,'message':'Token Required','details':[]}}
+        var token = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcde.';
+
+        // The first call will be for the token.
+        stubJSONPCall(baseUrl, tokenNotPresent, false);
+
+        var requestNewToken = function () {
+            return when().then(function () {
+                // The next call will be for geodata.
+                stubJSONPCall(baseUrl, webMercatorResult, false, token);
+                return token;
+            });
+        }
+
+        var provider = new ArcGisMapServerImageryProvider({
+            url : baseUrl,
+            requestNewToken : requestNewToken
+        });
+
+        expect(provider.url).toEqual(baseUrl);
+
+        return pollToPromise(function() {
+            return provider.ready;
+        }).then(function() {
+            loadWithXhr.load = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                expect(url).toEqual(baseUrl + '/tile/0/0/0?token=' + token);
+
+                // Just return any old image.
+                loadWithXhr.defaultLoad('Data/Images/Red16x16.png', responseType, method, data, headers, deferred);
+            };
+
+            return provider.requestImage(0, 0, 0).then(function(image) {
+                expect(image).toBeInstanceOf(Image);
+            });
+        });
+    });
+
+    it('requests a new token when the current token expires', function() {
+        var baseUrl = '//tiledArcGisMapServer.invalid';
+
+        var originalToken =    'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcde.';
+        var replacementToken = 'EDCBA_0123456789_zyxwvutsrqponmlkjihgfedcba.';
+
+        stubJSONPCall(baseUrl, webMercatorResult, false, originalToken);
+
+        var requestNewToken = function () {
+            return when().then(function () {
+                return replacementToken;
+            });
+        }
+
+        var provider = new ArcGisMapServerImageryProvider({
+            url : baseUrl,
+            token : originalToken,
+            requestNewToken : requestNewToken
+        });
+
+        expect(provider.url).toEqual(baseUrl);
+        expect(provider.token).toEqual(originalToken);
+
+        return pollToPromise(function() {
+            return provider.ready;
+        }).then(function() {
+            var loadWithXhrValidToken = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                // When the request is made the second time check that the token has been updated and then just return an image successfully.
+                expect(url).toEqual(baseUrl + '/tile/0/0/0?token=' + replacementToken);
+
+                // Just return any old image.
+                loadWithXhr.defaultLoad('Data/Images/Red16x16.png', responseType, method, data, headers, deferred);
+            };
+
+            loadWithXhr.load = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                // When the request is made the first time fail with 498.
+                expect(url).toEqual(baseUrl + '/tile/0/0/0?token=' + originalToken);
+
+                loadWithXhr.load = loadWithXhrValidToken;
+
+                deferred.reject(new RequestErrorEvent(498));
+            };
+
+            return provider.requestImage(0, 0, 0).then(function(image) {
+                expect(image).toBeInstanceOf(Image);
+            });
+        });
+    });
+
+    it('fails gracefully if a valid token is never returned', function() {
+        var baseUrl = '//tiledArcGisMapServer.invalid';
+
+        var token = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcde.';
+
+        stubJSONPCall(baseUrl, webMercatorResult, false, token);
+
+        var requestNewToken = function () {
+            return when().then(function () {
+                return token;
+            });
+        }
+
+        var provider = new ArcGisMapServerImageryProvider({
+            url : baseUrl,
+            token : token,
+            requestNewToken : requestNewToken
+        });
+
+        expect(provider.url).toEqual(baseUrl);
+        expect(provider.token).toEqual(token);
+
+        return pollToPromise(function() {
+            return provider.ready;
+        }).then(function() {
+            loadWithXhr.load = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                // When the request is made always fail with 498 (Invalid token).
+                expect(url).toEqual(baseUrl + '/tile/0/0/0?token=' + token);
+
+                deferred.reject(new RequestErrorEvent(498));
+            };
+
+            return provider.requestImage(0, 0, 0).then(function(image) {
+                fail('We should not return sucessfully.');
+            }).otherwise(function(error) {
+                // Success.
+           });
         });
     });
 
@@ -1018,6 +1151,73 @@ defineSuite([
                 return provider.ready;
             }).then(function() {
                 return provider.pickFeatures(0, 0, 0, 0.5, 0.5);
+            });
+        });
+
+        it('supports tokens', function() {
+            var token = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcde.';
+
+            var provider = new ArcGisMapServerImageryProvider({
+                url : 'made/up/map/server',
+                token : token,
+                usePreCachedTilesIfAvailable : false
+            });
+
+            loadWithXhr.load = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                expect(url).toContain('token='+token);
+                loadWithXhr.defaultLoad('Data/ArcGIS/identify-WebMercator.json', responseType, method, data, headers, deferred, overrideMimeType);
+            };
+
+            return pollToPromise(function() {
+                return provider.ready;
+            }).then(function() {
+                return provider.pickFeatures(0, 0, 0, 0.5, 0.5).then(function(pickResult) {
+                    expect(pickResult.length).toBe(1);
+                });
+            });
+        });
+
+        it('will refresh the token if it has expired', function() {
+            var originalToken = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcde.';
+            var replacementToken = 'EDCBA_0123456789_zyxwvutsrqponmlkjihgfedcba.';
+
+            var jsonError = '{"error":{"code":498,"message":"Invalid Token","details":[]}}';
+
+            var requestNewToken = function () {
+                return when().then(function () {
+                    return replacementToken;
+                });
+            }
+
+            var provider = new ArcGisMapServerImageryProvider({
+                url : 'made/up/map/server',
+                token : originalToken,
+                requestNewToken: requestNewToken,
+                usePreCachedTilesIfAvailable : false
+            });
+
+            var loadWithXhrValidToken = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                // When the request is made the second time check that the token has been updated and then just return sucessfully.
+                expect(url).toContain('token='+replacementToken);
+                loadWithXhr.defaultLoad('Data/ArcGIS/identify-WebMercator.json', responseType, method, data, headers, deferred, overrideMimeType);
+            };
+
+            loadWithXhr.load = function(url, responseType, method, data, headers, deferred, overrideMimeType) {
+                // When the request is made the first time fail with 498. todo we succeed fail in this case...
+                expect(url).toContain('token='+originalToken);
+
+                // Next call use the valid token handler.
+                loadWithXhr.load = loadWithXhrValidToken;
+
+                deferred.resolve(jsonError);
+            };
+
+            return pollToPromise(function() {
+                return provider.ready;
+            }).then(function() {
+                return provider.pickFeatures(0, 0, 0, 0.5, 0.5).then(function(pickResult) {
+                    expect(pickResult.length).toBe(1);
+                });
             });
         });
     });
