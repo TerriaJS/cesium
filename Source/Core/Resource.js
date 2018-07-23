@@ -1260,14 +1260,11 @@ define([
             var timeout = options.timeout;
             var data = options.data;
             var deferred = when.defer();
-<<<<<<< Updated upstream
-            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType, timeout);
-=======
-            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType, request);
->>>>>>> Stashed changes
+            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType, timeout, request);
             if (defined(xhr) && defined(xhr.abort)) {
                 request.cancelFunction = function() {
                     xhr.abort();
+                    request.cancel();
                 };
             }
             return deferred.promise;
@@ -1897,11 +1894,7 @@ define([
             }).end();
     }
 
-<<<<<<< Updated upstream
-    Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType, timeout) {
-=======
-    Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType, request) {
->>>>>>> Stashed changes
+    Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType, timeout, request) {
         var dataUriRegexResult = dataUriRegex.exec(url);
         if (dataUriRegexResult !== null) {
             deferred.resolve(decodeDataUri(dataUriRegexResult, responseType));
@@ -1992,7 +1985,7 @@ define([
                     var newXHR;
                     setTimeout(function(){
                         if (!request.cancelled){
-                            newXHR = loadWithXhr.load.call(this,newURL, responseType, method, data, headers, deferred, overrideMimeType, timeout, request);
+                            newXHR = Resource._Implementations.loadWithXhr.call(this,newURL, responseType, method, data, headers, deferred, overrideMimeType, timeout, request);
                         } else {
                             //user cancel request after waking from sleep
                             return;
