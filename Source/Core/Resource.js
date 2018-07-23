@@ -1260,10 +1260,11 @@ define([
             var timeout = options.timeout;
             var data = options.data;
             var deferred = when.defer();
-            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType, timeout);
+            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType, timeout, request);
             if (defined(xhr) && defined(xhr.abort)) {
                 request.cancelFunction = function() {
                     xhr.abort();
+                    request.cancel();
                 };
             }
             return deferred.promise;
@@ -1893,7 +1894,7 @@ define([
             }).end();
     }
 
-    Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType, timeout) {
+    Resource._Implementations.loadWithXhr = function(url, responseType, method, data, headers, deferred, overrideMimeType, timeout, request) {
         var dataUriRegexResult = dataUriRegex.exec(url);
         if (dataUriRegexResult !== null) {
             deferred.resolve(decodeDataUri(dataUriRegexResult, responseType));
@@ -1969,6 +1970,31 @@ define([
             if (xhr.status === 204) {
                 // accept no content
                 deferred.resolve();
+            } else if (xhr.status === 202) {
+                //HTTP 202 is for a process that can take a while
+                //contains at minimum a location to get the 
+                //completed resource from
+                //and the permission to read the location
+                var newURL = xhr.getResponseHeader('Location');
+                if (newURL === undefined || newURL === null || newURL === "") {
+                    deferred.reject(new RuntimeError("HTTP 202 header with no Location.\n Contact the service owner directly about this misconfiguration.\n Using HTTP 202 responses requires 'Location' and 'Access-Control-Expose-Headers: Location' headers in the response"));
+                     return;
+                }
+                //if request still valid change url and call this function
+                if (!request.cancelled) {
+                    var newXHR;
+                    setTimeout(function(){
+                        if (!request.cancelled){
+                            newXHR = Resource._Implementations.loadWithXhr.call(this,newURL, responseType, method, data, headers, deferred, overrideMimeType, timeout, request);
+                        } else {
+                            //user cancel request after waking from sleep
+                            return;
+                        }
+                    },10000);
+                    return newXHR
+                } else {
+                    return;//request has been cancelled by user before sleep
+                }
             } else if (defined(xhr.response) && (!defined(responseType) || (browserResponseType === responseType))) {
                 deferred.resolve(response);
             } else if ((responseType === 'json') && typeof response === 'string') {
