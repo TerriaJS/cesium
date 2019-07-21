@@ -1,6 +1,9 @@
 Change Log
 ==========
 
+### next - 2019-07-22
+* Added an option for the Resource object to hand back the xhr object for customised handling
+
 ### 1.48 - 2018-08-01
 
 ##### Additions :tada:
