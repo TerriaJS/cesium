@@ -159,8 +159,8 @@ define([
         return worker;
     }
 
-    var requireWasmWrapper = require.context('../ThirdParty/Workers', false, /.*wasm_wrapper\.js$/);
-    var requireWasm = require.context('../ThirdParty', false, /\.wasm$/);
+    var requireWasmWrapper = require.context ? require.context('../ThirdParty/Workers', false, /.*wasm_wrapper\.js$/) : require;
+    var requireWasm = require.context ? require.context('../ThirdParty', false, /\.wasm$/) : require;
 
     function getWebAssemblyLoaderConfig(processor, wasmOptions) {
         var config = {
