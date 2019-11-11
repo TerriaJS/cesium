@@ -1024,7 +1024,6 @@ define([
         var request = resource.request;
         request.url = resource.url;
         request.requestFunction = function() {
-            var url = resource.url;
             var crossOrigin = false;
 
             // data URIs can't have crossorigin set.
@@ -1033,7 +1032,7 @@ define([
             }
 
             var deferred = when.defer();
-            Resource._Implementations.createImage(url, crossOrigin, deferred, flipY, preferImageBitmap);
+            Resource._Implementations.createImage(request, crossOrigin, deferred, flipY, preferImageBitmap);
 
             return deferred.promise;
         };
@@ -1367,6 +1366,80 @@ define([
     };
 
     /**
+     * Asynchronously loads the given resource.  Returns a promise that will resolve to
+     * the xhr data once loaded, or reject if the resource failed to load.  The data is loaded
+     * using XMLHttpRequest, which means that in order to make requests to another origin,
+     * the server must have Cross-Origin Resource Sharing (CORS) headers enabled
+     *
+     * @param {Object} [options] Object with the following properties:
+     * @param {String} [options.responseType] The type of response.  This controls the type of item returned.
+     * @param {Object} [options.headers] Additional HTTP headers to send with the request, if any.
+     * @param {String} [options.overrideMimeType] Overrides the MIME type returned by the server.
+     * @param {Number} [options.timeout] The timeout of the request, in milliseconds.  If the request does not complete
+     *                 within this timeout, it is aborted and the promise is rejected with a RequestErrorEvent with the
+     *                 isTimeout property set to true.  If this property is undefined, no client-side timeout applies.
+     * @param {String} [options.returnType] Settings for if to modify the xhr object.
+     *                 Current values are RAWXHR, returns unmodified xhr object
+     *                                    XHRJSONHEADERS, returns xhr object where headers have been turned into an object
+     * @returns {Promise.<Object>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
+     *
+     *
+     * @example
+     * resource.fetchXHR()
+     *   .then(function(xhr) {
+     *       // if (xhr.status === 202) {
+     *       //    handle externally because 202 is not strictly defined
+     *       //    using xhr.headers or xhr.response
+     *       //}
+     *   }).otherwise(function(error) {
+     *       // an error occurred
+     *   });
+     *
+     * @see {@link http://www.w3.org/TR/cors/|Cross-Origin Resource Sharing}
+     * @see {@link http://wiki.commonjs.org/wiki/Promises/A|CommonJS Promises/A}
+     */
+    Resource.prototype.fetchXHR = function(options) {
+        options = defaultClone(options, {});
+        options.method = "GET";
+
+        return this._makeRequest(options);
+    };
+
+    /**
+     * Creates a Resource from a URL and calls fetchXHR() on it.
+     *
+     * @param {String|Object} options A url or an object with the following properties
+     * @param {String} options.url The url of the resource.
+     * @param {Object} [options.queryParameters] An object containing query parameters that will be sent when retrieving the resource.
+     * @param {Object} [options.templateValues] Key/Value pairs that are used to replace template values (eg. {x}).
+     * @param {Object} [options.headers={}] Additional HTTP headers that will be sent.
+     * @param {DefaultProxy} [options.proxy] A proxy to be used when loading the resource.
+     * @param {Resource~RetryCallback} [options.retryCallback] The Function to call when a request for this resource fails. If it returns true, the request will be retried.
+     * @param {Number} [options.retryAttempts=0] The number of times the retryCallback should be called before giving up.
+     * @param {Request} [options.request] A Request object that will be used. Intended for internal use only.
+     * @param {String} [options.responseType] The type of response.  This controls the type of item returned.
+     * @param {String} [options.overrideMimeType] Overrides the MIME type returned by the server.
+     * @param {Number} [options.timeout] The timeout of the request, in milliseconds.  If the request does not complete
+     *                 within this timeout, it is aborted and the promise is rejected with a RequestErrorEvent with the
+     *                 isTimeout property set to true.  If this property is undefined, no client-side timeout applies.
+     * @param {String} [options.returnType] Settings for if to modify the xhr object.
+     *                 Current values are RAWXHR, returns unmodified xhr object
+     *                                    XHRJSONHEADERS, returns xhr object where headers have been turned into an object
+     * @returns {Promise.<Object>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
+     */
+    Resource.fetchXHR = function(options) {
+        var resource = new Resource(options);
+
+        return resource.fetch({
+            // Make copy of just the needed fields because headers can be passed to both the constructor and to fetch
+            responseType: options.responseType,
+            overrideMimeType: options.overrideMimeType,
+            timeout: options.timeout,
+            returnType: options.returnType
+        });
+    };
+
+    /**
      * @private
      */
     Resource.prototype._makeRequest = function(options) {
@@ -1383,6 +1456,7 @@ define([
             var method = options.method;
             var timeout = options.timeout;
             var data = options.data;
+            var returnType = options.returnType; // undefined is off by default
             var deferred = when.defer();
             var xhr = Resource._Implementations.loadWithXhr(
                 resource.url,
@@ -1392,7 +1466,8 @@ define([
                 headers,
                 deferred,
                 overrideMimeType,
-                timeout
+                timeout,
+                returnType
             );
             if (defined(xhr) && defined(xhr.abort)) {
                 request.cancelFunction = function() {
@@ -1974,12 +2049,13 @@ define([
     }
 
     Resource._Implementations.createImage = function(
-        url,
+        request,
         crossOrigin,
         deferred,
         flipY,
         preferImageBitmap
     ) {
+        var url = request.url;
         // Passing an Image to createImageBitmap will force it to run on the main thread
         // since DOM elements don't exist on workers. We convert it to a blob so it's non-blocking.
         // See:
@@ -1993,11 +2069,27 @@ define([
                     loadImageElement(url, crossOrigin, deferred);
                     return;
                 }
+                var responseType = "blob";
+                var method = "GET";
+                var xhrDeferred = when.defer();
+                var xhr = Resource._Implementations.loadWithXhr(
+                    url,
+                    responseType,
+                    method,
+                    undefined,
+                    undefined,
+                    xhrDeferred,
+                    undefined,
+                    undefined,
+                    undefined
+                );
 
-                return Resource.fetchBlob({
-                    url: url
-                })
-                .then(function(blob) {
+                if (defined(xhr) && defined(xhr.abort)) {
+                    request.cancelFunction = function() {
+                        xhr.abort();
+                    };
+                }
+                return xhrDeferred.promise.then(function(blob) {
                     if (!defined(blob)) {
                         deferred.reject(new RuntimeError('Successfully retrieved ' + url + ' but it contained no content.'));
                         return;
@@ -2119,7 +2211,8 @@ define([
         headers,
         deferred,
         overrideMimeType,
-        timeout
+        timeout,
+        returnType
     ) {
         var dataUriRegexResult = dataUriRegex.exec(url);
         if (dataUriRegexResult !== null) {
@@ -2198,9 +2291,10 @@ define([
                     : xhr.responseText;
             var browserResponseType = xhr.responseType;
 
-            if (method === "HEAD" || method === "OPTIONS") {
-                var responseHeaderString = xhr.getAllResponseHeaders();
-                var splitHeaders = responseHeaderString.trim().split(/[\r\n]+/);
+            // Refactor of responseHeaders code to re-use
+            // input is the string from XmlHttpRequest.getAllResponseHeaders()
+            var xhrResponseHeadersToObject = function(input) {
+                var splitHeaders = input.trim().split(/[\r\n]+/);
 
                 var responseHeaders = {};
                 splitHeaders.forEach(function(line) {
@@ -2209,7 +2303,45 @@ define([
                     responseHeaders[header] = parts.join(": ");
                 });
 
-                deferred.resolve(responseHeaders);
+                return responseHeaders;
+            };
+
+            if (method === "HEAD" || method === "OPTIONS") {
+                deferred.resolve(
+                    xhrResponseHeadersToObject(
+                        xhr.getAllResponseHeaders()
+                    )
+                );
+                return;
+            }
+
+            // give everything back when that is the callers preference
+            if (returnType !== undefined) {
+                var returnValue = {};
+
+                if (returnType === "RAWXHR") {
+                    returnValue = xhr;
+                } else if (returnType === "XHRJSONHEADERS") {
+                    var responseHeaders = xhrResponseHeadersToObject(
+                        xhr.getAllResponseHeaders()
+                    );
+
+                    returnValue = {
+                        //status number not in xhr.getAllResponseHeaders()
+                        status: xhr.status,
+                        headers: responseHeaders,
+                        response: response
+                    }
+                }
+                // else if anyone wants to add more
+                else {
+                    deferred.reject(
+                        new RuntimeError("Service Misconfiguration for " + url.toString())
+                    );
+                    return;
+                }
+
+                deferred.resolve(returnValue);
                 return;
             }
 
