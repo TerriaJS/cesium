@@ -139,10 +139,16 @@ import UrlTemplateImageryProvider from './UrlTemplateImageryProvider.js';
 
         var pickFeatureParams = {
             query_layers: options.layers,
-            x: '{i}',
-            y: '{j}',
             info_format: '{format}'
         };
+        // use correct identifier based on version
+        if (parseFloat(resource.queryParameters.version) >= 1.3) {
+            pickFeatureParams.i = '{i}';
+            pickFeatureParams.j = '{j}';
+        } else {
+            pickFeatureParams.x = '{i}';
+            pickFeatureParams.y = '{j}';
+        }
         pickFeatureResource.setQueryParameters(pickFeatureParams, true);
 
         this._resource = resource;
