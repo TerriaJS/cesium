@@ -677,7 +677,7 @@ import Uri from '../ThirdParty/Uri.js';
     ]);
 
     function buildGetFeatureInfoUrl(imageryProvider, infoFormat, col, row, level, i, j) {
-        var uri = new Uri(imageryProvider._url);
+        var uri = new Uri(imageryProvider.url);
         var queryOptions = queryToObject(defaultValue(uri.query, ''));
 
         queryOptions = combine(WebMapTileServiceImageryProvider.GetFeatureInfoDefaultParameters, queryOptions);
