@@ -75,6 +75,7 @@ import processModelMaterialsCommon from "./processModelMaterialsCommon.js";
 import processPbrMaterials from "./processPbrMaterials.js";
 import SceneMode from "./SceneMode.js";
 import ShadowMode from "./ShadowMode.js";
+import ModelOutlineGenerationMode from "./ModelOutlineGenerationMode.js";
 
 var boundingSphereCartesian3Scratch = new Cartesian3();
 
@@ -316,6 +317,41 @@ function Model(options) {
    * @default 0.0
    */
   this.silhouetteSize = defaultValue(options.silhouetteSize, 0.0);
+
+  /**
+   * Determines whether outlines should be generated for this model.
+   *
+   * @type {ModelOutlineGenerationMode}
+   *
+   * @default ModelOutlineGenerationMode.USE_GLTF_SETTINGS
+   *
+   * @see ModelOutlineGenerator
+   */
+  this.outlineGenerationMode = defaultValue(
+    options.outlineGenerationMode,
+    ModelOutlineGenerationMode.USE_GLTF_SETTINGS
+  );
+
+  /**
+   * If generating outlines for this model, determines what the minimum angle
+   * between the normals of two faces has to be for the edge between them to
+   * receive an outline.
+   *
+   * This follows @see Model.outlineGenerationMode — if outlineGenerationMode is
+   * OFF or USE_GLTF_SETTINGS, this value will be ignored. If undefined, it will
+   * use the value from the glTF if it exists, or otherwise the default value
+   * specified by ModelOutlineGenerator.
+   *
+   * @type {number}
+   *
+   * @default undefined
+   *
+   * @see ModelOutlineGenerator
+   */
+  this.outlineGenerationMinimumAngle = defaultValue(
+    options.outlineGenerationMinimumAngle,
+    undefined
+  );
 
   /**
    * The 4x4 transformation matrix that transforms the model from model to world coordinates.
@@ -1385,6 +1421,8 @@ function containsGltfMagic(uint8Array) {
  * @param {Boolean} [options.dequantizeInShader=true] Determines if a {@link https://github.com/google/draco|Draco} encoded model is dequantized on the GPU. This decreases total memory usage for encoded models.
  * @param {Credit|String} [options.credit] A credit for the model, which is displayed on the canvas.
  * @param {Boolean} [options.backFaceCulling=true] Whether to cull back-facing geometry. When true, back face culling is determined by the material's doubleSided property; when false, back face culling is disabled. Back faces are not culled if {@link Model#color} is translucent or {@link Model#silhouetteSize} is greater than 0.0.
+ * @param {ModelOutlineGenerationMode} [options.outlineGenerationMode] Determines whether outlines should be generated for this model.
+ * @param {Number} [options.outlineGenerationMinimumAngle] If generating outlines for this model, determines what the minimum angle between the normals of two faces has to be for the edge between them to receive an outline.
  *
  * @returns {Model} The newly created model.
  *
@@ -2454,16 +2492,15 @@ function createProgram(programToCreate, model, context) {
   var drawVS = modifyShader(vs, programId, model._vertexShaderLoaded);
   var drawFS = modifyShader(fs, programId, model._fragmentShaderLoaded);
 
-
-    if (isOutline) {
-      drawFS = drawFS.replace(
-        "czm_writeLogDepth();",
-        "    czm_writeLogDepth();\n" +
-          "#if defined(LOG_DEPTH) && !defined(DISABLE_LOG_DEPTH_FRAGMENT_WRITE)\n" +
-          "    gl_FragDepthEXT -= 5e-5;\n" +
-          "#endif"
-      );
-    }
+  if (isOutline) {
+    drawFS = drawFS.replace(
+      "czm_writeLogDepth();",
+      "    czm_writeLogDepth();\n" +
+        "#if defined(LOG_DEPTH) && !defined(DISABLE_LOG_DEPTH_FRAGMENT_WRITE)\n" +
+        "    gl_FragDepthEXT -= 5e-5;\n" +
+        "#endif"
+    );
+  }
   if (!defined(model._uniformMapLoaded)) {
     drawFS = "uniform vec4 czm_pickColor;\n" + drawFS;
   }
@@ -2582,17 +2619,16 @@ function recreateProgram(programToCreate, model, context) {
   var drawVS = modifyShader(vs, programId, model._vertexShaderLoaded);
   var drawFS = modifyShader(finalFS, programId, model._fragmentShaderLoaded);
 
-
-    var isOutline = program.isOutline;
-    if (isOutline) {
-      drawFS = drawFS.replace(
-        "czm_writeLogDepth();",
-        "    czm_writeLogDepth();\n" +
-          "#if defined(LOG_DEPTH) && !defined(DISABLE_LOG_DEPTH_FRAGMENT_WRITE)\n" +
-          "    gl_FragDepthEXT -= 5e-5;\n" +
-          "#endif"
-      );
-    }
+  var isOutline = program.isOutline;
+  if (isOutline) {
+    drawFS = drawFS.replace(
+      "czm_writeLogDepth();",
+      "    czm_writeLogDepth();\n" +
+        "#if defined(LOG_DEPTH) && !defined(DISABLE_LOG_DEPTH_FRAGMENT_WRITE)\n" +
+        "    gl_FragDepthEXT -= 5e-5;\n" +
+        "#endif"
+    );
+  }
   if (!defined(model._uniformMapLoaded)) {
     drawFS = "uniform vec4 czm_pickColor;\n" + drawFS;
   }
@@ -5276,6 +5312,7 @@ Model.prototype.update = function (frameState) {
 
           var options = {
             addBatchIdToGeneratedShaders: this._addBatchIdToGeneratedShaders,
+            outlineGenerationMode: this.outlineGenerationMode,
           };
 
           processModelMaterialsCommon(gltf, options);

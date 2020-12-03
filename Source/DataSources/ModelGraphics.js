@@ -44,6 +44,8 @@ function createArticulationStagePropertyBag(value) {
  * @property {PropertyBag | Object.<string, TranslationRotationScale>} [nodeTransformations] An object, where keys are names of nodes, and values are {@link TranslationRotationScale} Properties describing the transformation to apply to that node. The transformation is applied after the node's existing transformation as specified in the glTF, and does not replace the node's existing transformation.
  * @property {PropertyBag | Object.<string, number>} [articulations] An object, where keys are composed of an articulation name, a single space, and a stage name, and the values are numeric properties.
  * @property {Property | ClippingPlaneCollection} [clippingPlanes] A property specifying the {@link ClippingPlaneCollection} used to selectively disable rendering the model.
+ * @property {Property | ModelOutlineGenerationMode} [options.outlineGenerationMode] A property that determines whether outlines should be generated for this model.
+ * @property {Property | Number} [options.outlineGenerationMinimumAngle] A property that if generating outlines for this model, determines what the minimum angle between the normals of two faces has to be for the edge between them to receive an outline.
  */
 
 /**
@@ -108,6 +110,8 @@ function ModelGraphics(options) {
   this._articulationsSubscription = undefined;
   this._clippingPlanes = undefined;
   this._clippingPlanesSubscription = undefined;
+  this._outlineGenerationMode = undefined;
+  this._outlineGenerationMinimumAngle = undefined;
 
   this.merge(defaultValue(options, defaultValue.EMPTY_OBJECT));
 }
@@ -313,6 +317,22 @@ Object.defineProperties(ModelGraphics.prototype, {
   clippingPlanes: createPropertyDescriptor("clippingPlanes"),
 
   /**
+   * A property that determines whether outlines should be generated for this model.
+   * @memberof ModelGraphics.prototype
+   * @type {Property|undefined}
+   */
+  outlineGenerationMode: createPropertyDescriptor("outlineGenerationMode"),
+
+  /**
+   *  A property that if generating outlines for this model, determines what the minimum angle between the normals of two faces has to be for the edge between them to receive an outline.
+   * @memberof ModelGraphics.prototype
+   * @type {Property|undefined}
+   */
+  outlineGenerationMinimumAngle: createPropertyDescriptor(
+    "outlineGenerationMinimumAngle"
+  ),
+
+  /**
    * A property specifying the {@link Axis} up axis of the model.
    * @memberOf ModelGraphics.prototype
    * @type {Property}
@@ -357,6 +377,8 @@ ModelGraphics.prototype.clone = function (result) {
   result.nodeTransformations = this.nodeTransformations;
   result.articulations = this.articulations;
   result.clippingPlanes = this.clippingPlanes;
+  result.outlineGenerationMode = this.outlineGenerationMode;
+  result.outlineGenerationMinimumAngle = this.outlineGenerationMinimumAngle;
   return result;
 };
 
@@ -426,6 +448,14 @@ ModelGraphics.prototype.merge = function (source) {
   this.clippingPlanes = defaultValue(
     this.clippingPlanes,
     source.clippingPlanes
+  );
+  this.outlineGenerationMode = defaultValue(
+    this.outlineGenerationMode,
+    source.outlineGenerationMode
+  );
+  this.outlineGenerationMinimumAngle = defaultValue(
+    this.outlineGenerationMinimumAngle,
+    source.outlineGenerationMinimumAngle
   );
 
   var sourceNodeTransformations = source.nodeTransformations;

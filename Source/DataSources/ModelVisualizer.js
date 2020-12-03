@@ -123,6 +123,14 @@ ModelVisualizer.prototype.update = function (time) {
           defaultIncrementallyLoadTextures
         ),
         scene: this._scene,
+        outlineGenerationMode: Property.getValueOrDefault(
+          modelGraphics._outlineGenerationMode,
+          time
+        ),
+        outlineGenerationMinimumAngle: Property.getValueOrDefault(
+          modelGraphics._outlineGenerationMinimumAngle,
+          time
+        ),
       });
       model.id = entity;
       primitives.add(model);
@@ -222,6 +230,14 @@ ModelVisualizer.prototype.update = function (time) {
     );
     model._forwardAxis = Property.getValueOrUndefined(
       modelGraphics._forwardAxis,
+      time
+    );
+    model._outlineGenerationMode = Property.getValueOrUndefined(
+      modelGraphics._outlineGenerationMode,
+      time
+    );
+    model._outlineGenerationMinimumAngle = Property.getValueOrUndefined(
+      modelGraphics._outlineGenerationMinimumAngle,
       time
     );
 

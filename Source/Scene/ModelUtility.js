@@ -16,6 +16,7 @@ import ForEach from "../ThirdParty/GltfPipeline/ForEach.js";
 import hasExtension from "../ThirdParty/GltfPipeline/hasExtension.js";
 import AttributeType from "./AttributeType.js";
 import Axis from "./Axis.js";
+import ModelOutlineGenerationMode from "./ModelOutlineGenerationMode.js";
 
 /**
  * @private
@@ -59,7 +60,10 @@ ModelUtility.getAssetVersion = function (gltf) {
  * @param {Object} gltf A javascript object containing a glTF asset.
  * @returns {Object} The glTF asset with modified materials.
  */
-ModelUtility.splitIncompatibleMaterials = function (gltf) {
+ModelUtility.splitIncompatibleMaterials = function (
+  gltf,
+  outlineGenerationMode
+) {
   var accessors = gltf.accessors;
   var materials = gltf.materials;
   var primitiveInfoByMaterial = {};
@@ -85,8 +89,10 @@ ModelUtility.splitIncompatibleMaterials = function (gltf) {
       var hasTexCoord1 =
         hasTexCoords && defined(primitive.attributes.TEXCOORD_1);
       var hasOutline =
-        defined(primitive.extensions) &&
-        defined(primitive.extensions.CESIUM_primitive_outline);
+        outlineGenerationMode === ModelOutlineGenerationMode.ON ||
+        (ModelOutlineGenerationMode.USE_GLTF_SETTINGS &&
+          defined(primitive.extensions) &&
+          defined(primitive.extensions.CESIUM_primitive_outline));
 
       var primitiveInfo = primitiveInfoByMaterial[materialIndex];
       if (!defined(primitiveInfo)) {

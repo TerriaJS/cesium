@@ -43,6 +43,7 @@ import StencilConstants from "./StencilConstants.js";
 import TileBoundingRegion from "./TileBoundingRegion.js";
 import TileBoundingSphere from "./TileBoundingSphere.js";
 import TileOrientedBoundingBox from "./TileOrientedBoundingBox.js";
+import ModelOutlineGenerationMode from "./ModelOutlineGenerationMode.js";
 
 /**
  * A {@link https://github.com/CesiumGS/3d-tiles/tree/master/specification|3D Tiles tileset},
@@ -90,6 +91,8 @@ import TileOrientedBoundingBox from "./TileOrientedBoundingBox.js";
  * @param {Cartesian3[]} [options.sphericalHarmonicCoefficients] The third order spherical harmonic coefficients used for the diffuse color of image-based lighting.
  * @param {String} [options.specularEnvironmentMaps] A URL to a KTX file that contains a cube map of the specular lighting and the convoluted specular mipmaps.
  * @param {Boolean} [options.backFaceCulling=true] Whether to cull back-facing geometry. When true, back face culling is determined by the glTF material's doubleSided property; when false, back face culling is disabled.
+ * @param {ModelOutlineGenerationMode} [options.outlineGenerationMode] Determines whether outlines should be generated for this model.
+ * @param {Number} [options.outlineGenerationMinimumAngle] If generating outlines for this model, determines what the minimum angle between the normals of two faces has to be for the edge between them to receive an outline.
  * @param {String} [options.debugHeatmapTilePropertyName] The tile variable to colorize as a heatmap. All rendered tiles will be colorized relative to each other's specified variable value.
  * @param {Boolean} [options.debugFreezeFrame=false] For debugging only. Determines if only the tiles from last frame should be used for rendering.
  * @param {Boolean} [options.debugColorizeTiles=false] For debugging only. When true, assigns a random color to each tile.
@@ -759,6 +762,41 @@ function Cesium3DTileset(options) {
    * @default true
    */
   this.backFaceCulling = defaultValue(options.backFaceCulling, true);
+
+  /**
+   * Determines whether outlines should be generated for this tileset.
+   *
+   * @type {ModelOutlineGenerationMode}
+   *
+   * @default ModelOutlineGenerationMode.USE_GLTF_SETTINGS
+   *
+   * @see ModelOutlineGenerator
+   */
+  this.outlineGenerationMode = defaultValue(
+    options.outlineGenerationMode,
+    ModelOutlineGenerationMode.USE_GLTF_SETTINGS
+  );
+
+  /**
+   * If generating outlines for this model, determines what the minimum angle
+   * between the normals of two faces has to be for the edge between them to
+   * receive an outline.
+   *
+   * This follows @see Cesium3DTileset.outlineGenerationMode — if outlineGenerationMode is
+   * OFF or USE_GLTF_SETTINGS, this value will be ignored. If undefined, it will
+   * use the value from the glTF if it exists, or otherwise the default value
+   * specified by ModelOutlineGenerator.
+   *
+   * @type {number}
+   *
+   * @default undefined
+   *
+   * @see ModelOutlineGenerator
+   */
+  this.outlineGenerationMinimumAngle = defaultValue(
+    options.outlineGenerationMinimumAngle,
+    undefined
+  );
 
   /**
    * This property is for debugging only; it is not optimized for production use.

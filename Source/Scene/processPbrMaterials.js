@@ -6,12 +6,13 @@ import addToArray from "../ThirdParty/GltfPipeline/addToArray.js";
 import ForEach from "../ThirdParty/GltfPipeline/ForEach.js";
 import hasExtension from "../ThirdParty/GltfPipeline/hasExtension.js";
 import ModelUtility from "./ModelUtility.js";
+import ModelOutlineGenerationMode from "./ModelOutlineGenerationMode.js";
 
 /**
  * @private
  */
 function processPbrMaterials(gltf, options) {
-  options = defaultValue(options, defaultValue.EMPTY_OBJECT);
+  options = defaultValue(options, {outlineGenerationMode: ModelOutlineGenerationMode.USE_GLTF_SETTINGS});
 
   // No need to create new techniques if they already exist,
   // the shader should handle these values
@@ -46,7 +47,7 @@ function processPbrMaterials(gltf, options) {
   gltf.extensionsUsed.push("KHR_techniques_webgl");
   gltf.extensionsRequired.push("KHR_techniques_webgl");
 
-  var primitiveByMaterial = ModelUtility.splitIncompatibleMaterials(gltf);
+  var primitiveByMaterial = ModelUtility.splitIncompatibleMaterials(gltf, options.outlineGenerationMode);
 
   ForEach.material(gltf, function (material, materialIndex) {
     var generatedMaterialValues = {};

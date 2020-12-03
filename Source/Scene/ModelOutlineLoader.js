@@ -7,6 +7,9 @@ import TextureMagnificationFilter from "../Renderer/TextureMagnificationFilter.j
 import TextureMinificationFilter from "../Renderer/TextureMinificationFilter.js";
 import TextureWrap from "../Renderer/TextureWrap.js";
 import ForEach from "../ThirdParty/GltfPipeline/ForEach.js";
+import ModelOutlineGenerator from "./ModelOutlineGenerator.js";
+import ModelOutlineGenerationMode from "./ModelOutlineGenerationMode.js";
+import WebGLConstants from "../Core/WebGLConstants.js";
 
 // glTF does not allow an index value of 65535 because this is the primitive
 // restart value in some APIs.
@@ -30,6 +33,51 @@ ModelOutlineLoader.hasExtension = function (model) {
 };
 
 /**
+ * Returns true if outlines should be generated for the model.
+ * @private
+ */
+ModelOutlineLoader.shouldGenerateOutlines = function (model) {
+  if (model.outlineGenerationMode === ModelOutlineGenerationMode.OFF) {
+    return false;
+  }
+
+  if (model.outlineGenerationMode === ModelOutlineGenerationMode.ON) {
+    return true;
+  }
+
+  var outlineGenerationRequestedInGltf = false;
+  if (ModelOutlineLoader.hasExtension(model)) {
+    ForEach.mesh(model.gltf, function (mesh, _meshId) {
+      if (outlineGenerationRequestedInGltf) {
+        return true; // break
+      }
+
+      ForEach.meshPrimitive(mesh, function (primitive, _primitiveId) {
+        if (
+          defined(primitive.extensions) &&
+          defined(primitive.extensions.CESIUM_primitive_outline) &&
+          defined(
+            primitive.extensions.CESIUM_primitive_outline
+              .outlineWhenAngleBetweenFaceNormalsExceeds
+          )
+        ) {
+          outlineGenerationRequestedInGltf = true;
+          return true; //  break
+        }
+      });
+    });
+  }
+  if (
+    model.generateOutlines === ModelOutlineGenerationMode.USE_GLTF_SETTINGS &&
+    outlineGenerationRequestedInGltf
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
  * Arranges to outline any primitives with the CESIUM_primitive_outline extension.
  * It is expected that all buffer data is loaded and available in
  * `extras._pipeline.source` before this function is called, and that vertex
@@ -37,8 +85,18 @@ ModelOutlineLoader.hasExtension = function (model) {
  * @private
  */
 ModelOutlineLoader.outlinePrimitives = function (model) {
-  if (!ModelOutlineLoader.hasExtension(model)) {
+  if (
+    !ModelOutlineLoader.hasExtension(model) &&
+    !ModelOutlineLoader.shouldGenerateOutlines(model)
+  ) {
     return;
+  }
+
+  if (ModelOutlineLoader.shouldGenerateOutlines(model)) {
+    if (!ModelOutlineGenerator.generateOutlinesForModel(model)) {
+      // This model doesn't need outlines loaded for it
+      return;
+    }
   }
 
   var gltf = model.gltf;
@@ -177,33 +235,90 @@ function addOutline(
   }
 
   var triangleIndexAccessorGltf = accessors[primitive.indices];
-  var triangleIndexBufferViewGltf =
-    bufferViews[triangleIndexAccessorGltf.bufferView];
+  var needToCreateIndices = !defined(triangleIndexAccessorGltf);
+
+  var triangleIndexBufferViewGltf = needToCreateIndices
+    ? {}
+    : bufferViews[triangleIndexAccessorGltf.bufferView];
+
   var edgeIndexAccessorGltf = accessors[edgeIndicesAccessorId];
   var edgeIndexBufferViewGltf = bufferViews[edgeIndexAccessorGltf.bufferView];
 
   var loadResources = model._loadResources;
-  var triangleIndexBufferView = loadResources.getBuffer(
-    triangleIndexBufferViewGltf
-  );
+
+  var triangleIndexBufferView;
+  if (!needToCreateIndices) {
+    // Generate an index buffer, and use that to create the accessor and bufferview
+    triangleIndexBufferView = loadResources.getBuffer(
+      triangleIndexBufferViewGltf
+    );
+  }
+
   var edgeIndexBufferView = loadResources.getBuffer(edgeIndexBufferViewGltf);
 
-  var triangleIndices =
-    triangleIndexAccessorGltf.componentType === 5123
-      ? new Uint16Array(
-          triangleIndexBufferView.buffer,
-          triangleIndexBufferView.byteOffset +
-            triangleIndexAccessorGltf.byteOffset,
-          triangleIndexAccessorGltf.count
-        )
-      : new Uint32Array(
-          triangleIndexBufferView.buffer,
-          triangleIndexBufferView.byteOffset +
-            triangleIndexAccessorGltf.byteOffset,
-          triangleIndexAccessorGltf.count
-        );
+  var triangleIndices;
+  if (needToCreateIndices) {
+    triangleIndices =
+      numVertices <= MAX_GLTF_UINT16_INDEX
+        ? new Uint16Array(numVertices)
+        : new Uint32Array(numVertices);
+    for (var i = 0; i < triangleIndices.length; ++i) {
+      triangleIndices[i] = i;
+    }
+
+    // Update the model to include this new buffer
+    var bufferId =
+      gltf.buffers.push({
+        byteLength: triangleIndices.byteLength,
+        extras: {
+          _pipeline: {
+            source: triangleIndices.buffer,
+          },
+        },
+      }) - 1;
+
+    triangleIndexBufferViewGltf = {
+      buffer: bufferId,
+      byteLength: triangleIndices.byteLength,
+      byteOffset: 0,
+      target: WebGLConstants.ELEMENT_ARRAY_BUFFER,
+    };
+    var bufferViewId = gltf.bufferViews.push(triangleIndexBufferViewGltf) - 1;
+
+    triangleIndexAccessorGltf = {
+      bufferView: bufferViewId,
+      componentType:
+        numVertices <= MAX_GLTF_UINT16_INDEX
+          ? WebGLConstants.UNSIGNED_SHORT
+          : WebGLConstants.UNSIGNED_INT,
+      count: triangleIndices.length,
+      max: numVertices,
+      min: 0,
+      type: "SCALAR",
+    };
+    gltf.accessors.push(triangleIndexAccessorGltf);
+
+    loadResources.buffers[bufferId] = triangleIndices;
+    triangleIndexBufferView = triangleIndices;
+  } else {
+    triangleIndices =
+      triangleIndexAccessorGltf.componentType === WebGLConstants.UNSIGNED_SHORT
+        ? new Uint16Array(
+            triangleIndexBufferView.buffer,
+            triangleIndexBufferView.byteOffset +
+              triangleIndexAccessorGltf.byteOffset,
+            triangleIndexAccessorGltf.count
+          )
+        : new Uint32Array(
+            triangleIndexBufferView.buffer,
+            triangleIndexBufferView.byteOffset +
+              triangleIndexAccessorGltf.byteOffset,
+            triangleIndexAccessorGltf.count
+          );
+  }
+
   var edgeIndices =
-    edgeIndexAccessorGltf.componentType === 5123
+    edgeIndexAccessorGltf.componentType === WebGLConstants.UNSIGNED_SHORT
       ? new Uint16Array(
           edgeIndexBufferView.buffer,
           edgeIndexBufferView.byteOffset + edgeIndexAccessorGltf.byteOffset,
@@ -283,7 +398,7 @@ function addOutline(
       ) {
         // We outgrew a 16-bit index buffer, switch to 32-bit.
         triangleIndices = new Uint32Array(triangleIndices);
-        triangleIndexAccessorGltf.componentType = 5125; // UNSIGNED_INT
+        triangleIndexAccessorGltf.componentType = WebGLConstants.UNSIGNED_INT;
         triangleIndexBufferViewGltf.buffer =
           gltf.buffers.push({
             byteLength: triangleIndices.byteLength,
