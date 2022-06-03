@@ -82,19 +82,17 @@ function Cesium3DTileStyle(style) {
 
   this._colorShaderTranslucent = false;
 
-  let promise;
   if (typeof style === "string" || style instanceof Resource) {
     const resource = Resource.createIfNeeded(style);
-    promise = resource.fetchJson(style);
+    const that = this;
+    this._readyPromise = resource.fetchJson(style).then(function (styleJson) {
+      setup(that, styleJson);
+      return that;
+    });
   } else {
-    promise = Promise.resolve(style);
+    setup(this, style);
+    this._readyPromise = Promise.resolve(this);
   }
-
-  const that = this;
-  this._readyPromise = promise.then(function (styleJson) {
-    setup(that, styleJson);
-    return that;
-  });
 }
 
 function setup(that, styleJson) {
