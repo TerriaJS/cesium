@@ -16,7 +16,7 @@ import ImageryProvider from "./ImageryProvider.js";
 import TimeDynamicImagery from "./TimeDynamicImagery.js";
 import objectToQuery from "../Core/objectToQuery.js";
 import queryToObject from "../Core/queryToObject.js";
-import Uri from "../ThirdParty/Uri.js";
+import Uri from "urijs";
 
 const defaultParameters = Object.freeze({
   service: "WMTS",

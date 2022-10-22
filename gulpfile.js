@@ -351,35 +351,35 @@ async function clocSource() {
 export async function prepare() {
   // Copy Draco3D files from node_modules into Source
   copyFileSync(
-    "node_modules/draco3d/draco_decoder_nodejs.js",
+    require.resolve("draco3d/draco_decoder_nodejs.js"),
     "Source/ThirdParty/Workers/draco_decoder_nodejs.js"
   );
   copyFileSync(
-    "node_modules/draco3d/draco_decoder.wasm",
+    require.resolve("draco3d/draco_decoder.wasm"),
     "Source/ThirdParty/draco_decoder.wasm"
   );
 
   // Copy pako and zip.js worker files to Source/ThirdParty
   copyFileSync(
-    "node_modules/pako/dist/pako_inflate.min.js",
+    require.resolve("pako/dist/pako_inflate.min.js"),
     "Source/ThirdParty/Workers/pako_inflate.min.js"
   );
   copyFileSync(
-    "node_modules/pako/dist/pako_deflate.min.js",
+    require.resolve("pako/dist/pako_deflate.min.js"),
     "Source/ThirdParty/Workers/pako_deflate.min.js"
   );
   copyFileSync(
-    "node_modules/@zip.js/zip.js/dist/z-worker-pako.js",
+    require.resolve("@zip.js/zip.js/dist/z-worker-pako.js"),
     "Source/ThirdParty/Workers/z-worker-pako.js"
   );
 
   // Copy prism.js and prism.css files into Tools
   copyFileSync(
-    "node_modules/prismjs/prism.js",
+    require.resolve("prismjs/prism.js"),
     "Tools/jsdoc/cesium_template/static/javascript/prism.js"
   );
   copyFileSync(
-    "node_modules/prismjs/themes/prism.min.css",
+    require.resolve("prismjs/themes/prism.min.css"),
     "Tools/jsdoc/cesium_template/static/styles/prism.css"
   );
 
@@ -1293,7 +1293,7 @@ function createTypeScriptDefinitions() {
 
   // Wrap the source to actually be inside of a declared cesium module
   // and add any workaround and private utility types.
-  source = `declare module "cesium" {
+  source = `declare module "terriajs-cesium" {
 ${source}
 }
 
@@ -1310,7 +1310,7 @@ ${source}
     const assignmentName = basename(file, extname(file));
     if (publicModules.has(assignmentName)) {
       publicModules.delete(assignmentName);
-      source += `declare module "cesium/Source/${moduleId}" { import { ${assignmentName} } from 'cesium'; export default ${assignmentName}; }\n`;
+      source += `declare module "terriajs-cesium/Source/${moduleId}" { import { ${assignmentName} } from 'terriajs-cesium'; export default ${assignmentName}; }\n`;
     }
   });
 
@@ -1595,3 +1595,23 @@ async function buildCesiumViewer() {
 function filePathToModuleId(moduleId) {
   return moduleId.substring(0, moduleId.lastIndexOf(".")).replace(/\\/g, "/");
 }
+
+// TerriajS-specific tasks.
+export function terriaCopyCesiumAssets() {
+  return gulp
+    .src(
+      [
+        "Source/Workers/transferTypedArrayTest.js",
+        "Source/ThirdParty/Workers/**",
+        "Source/Assets/**",
+        "Source/Widgets/**/*.css",
+        "Source/Widgets/Images/**",
+      ],
+      { base: "Source" }
+    )
+    .pipe(gulp.dest("wwwroot/build/"));
+}
+
+export const terriaPrepareCesium = gulp.series(prepare, () => glslToJavaScript(true, "Build/minifyShaders.state"), terriaCopyCesiumAssets, buildTs);
+
+export const terriaDefault = gulp.series(terriaPrepareCesium);
