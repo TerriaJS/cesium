@@ -36,7 +36,7 @@
     <div id="loadingOverlay"><h1>Loading...</h1></div>
     <div id="toolbar"></div>
     <script id="cesium_sandcastle_script">
-      function startup(Cesium) {
+      window.startup = function (Cesium) {
         "use strict";
         //Sandcastle_Begin
 
@@ -194,12 +194,12 @@
           }
           console.log(`Class: ${feature.getExactClassName()}`);
           console.log("Properties:");
-          const propertyNames = feature.getPropertyNames();
-          const length = propertyNames.length;
+          const propertyIds = feature.getPropertyIds();
+          const length = propertyIds.length;
           for (let i = 0; i < length; ++i) {
-            const name = propertyNames[i];
-            const value = feature.getProperty(name);
-            console.log(`  ${name}: ${value}`);
+            const propertyId = propertyIds[i];
+            const value = feature.getProperty(propertyId);
+            console.log(`  ${propertyId}: ${value}`);
           }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -213,10 +213,10 @@
         }, Cesium.ScreenSpaceEventType.MIDDLE_CLICK);
         //Sandcastle_End
         Sandcastle.finishedLoading();
-      }
+      };
       if (typeof Cesium !== "undefined") {
         window.startupCalled = true;
-        startup(Cesium);
+        window.startup(Cesium);
       }
     </script>
   </body>

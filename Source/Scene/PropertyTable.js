@@ -1,6 +1,8 @@
 import Check from "../Core/Check.js";
 import defaultValue from "../Core/defaultValue.js";
+import DeveloperError from "../Core/DeveloperError.js";
 import defined from "../Core/defined.js";
+import JsonMetadataTable from "./JsonMetadataTable.js";
 
 /**
  * A property table for use with the <code>EXT_structural_metadata</code> extension or
@@ -137,6 +139,30 @@ Object.defineProperties(PropertyTable.prototype, {
       return this._extensions;
     },
   },
+
+  /**
+   * Get the total amount of binary metadata stored in memory. This does
+   * not include JSON metadata
+   *
+   * @memberof PropertyTable.prototype
+   * @type {Number}
+   * @readonly
+   * @private
+   */
+  byteLength: {
+    get: function () {
+      let totalByteLength = 0;
+      if (defined(this._metadataTable)) {
+        totalByteLength += this._metadataTable.byteLength;
+      }
+
+      if (defined(this._batchTableHierarchy)) {
+        totalByteLength += this._batchTableHierarchy.byteLength;
+      }
+
+      return totalByteLength;
+    },
+  },
 });
 
 /**
@@ -161,15 +187,15 @@ PropertyTable.prototype.hasProperty = function (index, propertyId) {
   }
 
   if (
-    defined(this._jsonMetadataTable) &&
-    this._jsonMetadataTable.hasProperty(propertyId)
+    defined(this._batchTableHierarchy) &&
+    this._batchTableHierarchy.hasProperty(index, propertyId)
   ) {
     return true;
   }
 
   if (
-    defined(this._batchTableHierarchy) &&
-    this._batchTableHierarchy.hasProperty(index, propertyId)
+    defined(this._jsonMetadataTable) &&
+    this._jsonMetadataTable.hasProperty(propertyId)
   ) {
     return true;
   }
@@ -219,15 +245,15 @@ PropertyTable.prototype.propertyExists = function (propertyId) {
   }
 
   if (
-    defined(this._jsonMetadataTable) &&
-    this._jsonMetadataTable.hasProperty(propertyId)
+    defined(this._batchTableHierarchy) &&
+    this._batchTableHierarchy.propertyExists(propertyId)
   ) {
     return true;
   }
 
   if (
-    defined(this._batchTableHierarchy) &&
-    this._batchTableHierarchy.propertyExists(propertyId)
+    defined(this._jsonMetadataTable) &&
+    this._jsonMetadataTable.hasProperty(propertyId)
   ) {
     return true;
   }
@@ -276,17 +302,17 @@ PropertyTable.prototype.getPropertyIds = function (index, results) {
     );
   }
 
-  if (defined(this._jsonMetadataTable)) {
-    results.push.apply(
-      results,
-      this._jsonMetadataTable.getPropertyIds(scratchResults)
-    );
-  }
-
   if (defined(this._batchTableHierarchy)) {
     results.push.apply(
       results,
       this._batchTableHierarchy.getPropertyIds(index, scratchResults)
+    );
+  }
+
+  if (defined(this._jsonMetadataTable)) {
+    results.push.apply(
+      results,
+      this._jsonMetadataTable.getPropertyIds(scratchResults)
     );
   }
 
@@ -313,15 +339,15 @@ PropertyTable.prototype.getProperty = function (index, propertyId) {
     }
   }
 
-  if (defined(this._jsonMetadataTable)) {
-    result = this._jsonMetadataTable.getProperty(index, propertyId);
+  if (defined(this._batchTableHierarchy)) {
+    result = this._batchTableHierarchy.getProperty(index, propertyId);
     if (defined(result)) {
       return result;
     }
   }
 
-  if (defined(this._batchTableHierarchy)) {
-    result = this._batchTableHierarchy.getProperty(index, propertyId);
+  if (defined(this._jsonMetadataTable)) {
+    result = this._jsonMetadataTable.getProperty(index, propertyId);
     if (defined(result)) {
       return result;
     }
@@ -331,7 +357,9 @@ PropertyTable.prototype.getProperty = function (index, propertyId) {
 };
 
 /**
- * Sets the value of the property with the given ID.
+ * Sets the value of the property with the given ID. If the property did not
+ * exist, it will be created as a JSON metadata property
+ *
  * <p>
  * If the property is normalized a normalized value must be provided to this function.
  * </p>
@@ -339,7 +367,6 @@ PropertyTable.prototype.getProperty = function (index, propertyId) {
  * @param {Number} index The index of the feature.
  * @param {String} propertyId The case-sensitive ID of the property.
  * @param {*} value The value of the property that will be copied.
- * @returns {Boolean} <code>true</code> if the property was set, <code>false</code> otherwise.
  * @private
  */
 PropertyTable.prototype.setProperty = function (index, propertyId, value) {
@@ -347,20 +374,26 @@ PropertyTable.prototype.setProperty = function (index, propertyId, value) {
     defined(this._metadataTable) &&
     this._metadataTable.setProperty(index, propertyId, value)
   ) {
-    return true;
+    return;
   }
 
   if (
-    defined(this._jsonMetadataTable) &&
-    this._jsonMetadataTable.setProperty(index, propertyId, value)
-  ) {
-    return true;
-  }
-
-  return (
     defined(this._batchTableHierarchy) &&
     this._batchTableHierarchy.setProperty(index, propertyId, value)
-  );
+  ) {
+    return;
+  }
+
+  // Ensure we have a table for JSON properties
+  if (!defined(this._jsonMetadataTable)) {
+    this._jsonMetadataTable = new JsonMetadataTable({
+      count: this._count,
+      properties: {},
+    });
+  }
+
+  // JsonMetadataTable will handle creating a new property at runtime.
+  this._jsonMetadataTable.setProperty(index, propertyId, value);
 };
 
 /**
@@ -458,6 +491,51 @@ PropertyTable.prototype.getPropertyTypedArrayBySemantic = function (semantic) {
   }
 
   return undefined;
+};
+
+function checkFeatureId(featureId, featuresLength) {
+  if (!defined(featureId) || featureId < 0 || featureId >= featuresLength) {
+    throw new DeveloperError(
+      `featureId is required and must be between zero and featuresLength - 1 (${featuresLength}` -
+        +")."
+    );
+  }
+}
+
+PropertyTable.prototype.isClass = function (featureId, className) {
+  //>>includeStart('debug', pragmas.debug);
+  checkFeatureId(featureId, this.count);
+  Check.typeOf.string("className", className);
+  //>>includeEnd('debug');
+
+  const hierarchy = this._batchTableHierarchy;
+  if (!defined(hierarchy)) {
+    return false;
+  }
+
+  return hierarchy.isClass(featureId, className);
+};
+
+PropertyTable.prototype.isExactClass = function (featureId, className) {
+  //>>includeStart('debug', pragmas.debug);
+  checkFeatureId(featureId, this.count);
+  Check.typeOf.string("className", className);
+  //>>includeEnd('debug');
+
+  return this.getExactClassName(featureId) === className;
+};
+
+PropertyTable.prototype.getExactClassName = function (featureId) {
+  //>>includeStart('debug', pragmas.debug);
+  checkFeatureId(featureId, this.count);
+  //>>includeEnd('debug');
+
+  const hierarchy = this._batchTableHierarchy;
+  if (!defined(hierarchy)) {
+    return undefined;
+  }
+
+  return hierarchy.getClassName(featureId);
 };
 
 export default PropertyTable;

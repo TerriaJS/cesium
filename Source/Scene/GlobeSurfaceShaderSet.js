@@ -265,8 +265,10 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
     }
 
     if (dynamicAtmosphereLighting) {
+      vs.defines.push("DYNAMIC_ATMOSPHERE_LIGHTING");
       fs.defines.push("DYNAMIC_ATMOSPHERE_LIGHTING");
       if (dynamicAtmosphereLightingFromSun) {
+        vs.defines.push("DYNAMIC_ATMOSPHERE_LIGHTING_FROM_SUN");
         fs.defines.push("DYNAMIC_ATMOSPHERE_LIGHTING_FROM_SUN");
       }
     }
@@ -275,6 +277,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
       vs.defines.push("GROUND_ATMOSPHERE");
       fs.defines.push("GROUND_ATMOSPHERE");
       if (perFragmentGroundAtmosphere) {
+        vs.defines.push("PER_FRAGMENT_GROUND_ATMOSPHERE");
         fs.defines.push("PER_FRAGMENT_GROUND_ATMOSPHERE");
       }
     }

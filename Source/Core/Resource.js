@@ -1,4 +1,4 @@
-import Uri from "../ThirdParty/Uri.js";
+import Uri from "urijs";
 import appendForwardSlash from "./appendForwardSlash.js";
 import Check from "./Check.js";
 import clone from "./clone.js";
@@ -215,20 +215,27 @@ function combineQueryParameters(q1, q2, preserveQueryParameters) {
 }
 
 /**
+ * @typedef {Object} Resource.ConstructorOptions
+ *
+ * Initialization options for the Resource constructor
+ *
+ * @property {String} url The url of the resource.
+ * @property {Object} [queryParameters] An object containing query parameters that will be sent when retrieving the resource.
+ * @property {Object} [templateValues] Key/Value pairs that are used to replace template values (eg. {x}).
+ * @property {Object} [headers={}] Additional HTTP headers that will be sent.
+ * @property {Proxy} [proxy] A proxy to be used when loading the resource.
+ * @property {Resource.RetryCallback} [retryCallback] The Function to call when a request for this resource fails. If it returns true, the request will be retried.
+ * @property {Number} [retryAttempts=0] The number of times the retryCallback should be called before giving up.
+ * @property {Request} [request] A Request object that will be used. Intended for internal use only.
+ */
+
+/**
  * A resource that includes the location and any other parameters we need to retrieve it or create derived resources. It also provides the ability to retry requests.
  *
  * @alias Resource
  * @constructor
  *
- * @param {String|Object} options A url or an object with the following properties
- * @param {String} options.url The url of the resource.
- * @param {Object} [options.queryParameters] An object containing query parameters that will be sent when retrieving the resource.
- * @param {Object} [options.templateValues] Key/Value pairs that are used to replace template values (eg. {x}).
- * @param {Object} [options.headers={}] Additional HTTP headers that will be sent.
- * @param {Proxy} [options.proxy] A proxy to be used when loading the resource.
- * @param {Resource.RetryCallback} [options.retryCallback] The Function to call when a request for this resource fails. If it returns true, the request will be retried.
- * @param {Number} [options.retryAttempts=0] The number of times the retryCallback should be called before giving up.
- * @param {Request} [options.request] A Request object that will be used. Intended for internal use only.
+ * @param {String|Resource.ConstructorOptions} options A url or an object describing initialization options
  *
  * @example
  * function refreshTokenRetryCallback(resource, error) {
@@ -891,7 +898,7 @@ Resource.fetchBlob = function (options) {
  * @param {Boolean} [options.preferImageBitmap=false] If true, image will be decoded during fetch and an <code>ImageBitmap</code> is returned.
  * @param {Boolean} [options.flipY=false] If true, image will be vertically flipped during decode. Only applies if the browser supports <code>createImageBitmap</code>.
  * @param {Boolean} [options.skipColorSpaceConversion=false] If true, any custom gamma or color profiles in the image will be ignored. Only applies if the browser supports <code>createImageBitmap</code>.
- * @returns {Promise.<ImageBitmap>|Promise.<HTMLImageElement>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
+ * @returns {Promise.<ImageBitmap|HTMLImageElement>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
  *
  *
  * @example
@@ -1093,7 +1100,7 @@ function fetchImage(options) {
  * @param {Boolean} [options.preferBlob=false]  If true, we will load the image via a blob.
  * @param {Boolean} [options.preferImageBitmap=false] If true, image will be decoded during fetch and an <code>ImageBitmap</code> is returned.
  * @param {Boolean} [options.skipColorSpaceConversion=false] If true, any custom gamma or color profiles in the image will be ignored. Only applies when requesting an image and the browser supports <code>createImageBitmap</code>.
- * @returns {Promise.<ImageBitmap>|Promise.<HTMLImageElement>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
+ * @returns {Promise.<ImageBitmap|HTMLImageElement>|undefined} a promise that will resolve to the requested data when loaded. Returns undefined if <code>request.throttle</code> is true and the request does not have high enough priority.
  */
 Resource.fetchImage = function (options) {
   const resource = new Resource(options);
@@ -2190,59 +2197,65 @@ function loadWithHttpRequest(
   overrideMimeType
 ) {
   // Note: only the 'json' and 'text' responseTypes transforms the loaded buffer
-  /* eslint-disable no-undef */
-  const URL = require("url").parse(url);
-  const http = URL.protocol === "https:" ? require("https") : require("http");
-  const zlib = require("zlib");
-  /* eslint-enable no-undef */
+  let URL;
+  let zlib;
+  Promise.all([import("url"), import("zlib")])
+    .then(([urlImport, zlibImport]) => {
+      URL = urlImport.parse(url);
+      zlib = zlibImport;
 
-  const options = {
-    protocol: URL.protocol,
-    hostname: URL.hostname,
-    port: URL.port,
-    path: URL.path,
-    query: URL.query,
-    method: method,
-    headers: headers,
-  };
+      return URL.protocol === "https:" ? import("https") : import("http");
+    })
+    .then((http) => {
+      const options = {
+        protocol: URL.protocol,
+        hostname: URL.hostname,
+        port: URL.port,
+        path: URL.path,
+        query: URL.query,
+        method: method,
+        headers: headers,
+      };
+      http
+        .request(options)
+        .on("response", function (res) {
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            deferred.reject(
+              new RequestErrorEvent(res.statusCode, res, res.headers)
+            );
+            return;
+          }
 
-  http
-    .request(options)
-    .on("response", function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        deferred.reject(
-          new RequestErrorEvent(res.statusCode, res, res.headers)
-        );
-        return;
-      }
+          const chunkArray = [];
+          res.on("data", function (chunk) {
+            chunkArray.push(chunk);
+          });
 
-      const chunkArray = [];
-      res.on("data", function (chunk) {
-        chunkArray.push(chunk);
-      });
-
-      res.on("end", function () {
-        // eslint-disable-next-line no-undef
-        const result = Buffer.concat(chunkArray);
-        if (res.headers["content-encoding"] === "gzip") {
-          zlib.gunzip(result, function (error, resultUnzipped) {
-            if (error) {
-              deferred.reject(
-                new RuntimeError("Error decompressing response.")
-              );
+          res.on("end", function () {
+            // eslint-disable-next-line no-undef
+            const result = Buffer.concat(chunkArray);
+            if (res.headers["content-encoding"] === "gzip") {
+              zlib.gunzip(result, function (error, resultUnzipped) {
+                if (error) {
+                  deferred.reject(
+                    new RuntimeError("Error decompressing response.")
+                  );
+                } else {
+                  deferred.resolve(
+                    decodeResponse(resultUnzipped, responseType)
+                  );
+                }
+              });
             } else {
-              deferred.resolve(decodeResponse(resultUnzipped, responseType));
+              deferred.resolve(decodeResponse(result, responseType));
             }
           });
-        } else {
-          deferred.resolve(decodeResponse(result, responseType));
-        }
-      });
-    })
-    .on("error", function (e) {
-      deferred.reject(new RequestErrorEvent());
-    })
-    .end();
+        })
+        .on("error", function (e) {
+          deferred.reject(new RequestErrorEvent());
+        })
+        .end();
+    });
 }
 
 Resource._Implementations.loadWithXhr = function (

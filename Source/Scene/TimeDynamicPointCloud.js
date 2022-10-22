@@ -1,8 +1,6 @@
-import arrayFill from "../Core/arrayFill.js";
 import Check from "../Core/Check.js";
 import combine from "../Core/combine.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import destroyObject from "../Core/destroyObject.js";
 import Event from "../Core/Event.js";
@@ -147,8 +145,8 @@ function TimeDynamicPointCloud(options) {
    *
    * @example
    * pointCloud.frameFailed.addEventListener(function(error) {
-   *     console.log('An error occurred loading frame: ' + error.uri);
-   *     console.log('Error: ' + error.message);
+   *     console.log(`An error occurred loading frame: ${error.uri}`);
+   *     console.log(`Error: ${error.message}`);
    * });
    */
   this.frameFailed = new Event();
@@ -183,13 +181,17 @@ function TimeDynamicPointCloud(options) {
   this._nextInterval = undefined;
   this._lastRenderedFrame = undefined;
   this._clockMultiplier = 0.0;
-  this._readyPromise = defer();
+  this._resolveReadyPromise = undefined;
+  const that = this;
+  this._readyPromise = new Promise(function (resolve) {
+    that._resolveReadyPromise = resolve;
+  });
 
   // For calculating average load time of the last N frames
   this._runningSum = 0.0;
   this._runningLength = 0;
   this._runningIndex = 0;
-  this._runningSamples = arrayFill(new Array(5), 0.0);
+  this._runningSamples = new Array(5).fill(0.0);
   this._runningAverage = 0.0;
 }
 
@@ -253,7 +255,7 @@ Object.defineProperties(TimeDynamicPointCloud.prototype, {
    */
   readyPromise: {
     get: function () {
-      return this._readyPromise.promise;
+      return this._readyPromise;
     },
   },
 });
@@ -736,7 +738,7 @@ TimeDynamicPointCloud.prototype.update = function (frameState) {
   const that = this;
   if (defined(frame) && !defined(this._lastRenderedFrame)) {
     frameState.afterRender.push(function () {
-      that._readyPromise.resolve(that);
+      that._resolveReadyPromise(that);
     });
   }
 

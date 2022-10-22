@@ -1,17 +1,20 @@
-import { Cartesian2 } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Color } from "../../Source/Cesium.js";
-import { DistanceDisplayCondition } from "../../Source/Cesium.js";
-import { JulianDate } from "../../Source/Cesium.js";
-import { Quaternion } from "../../Source/Cesium.js";
-import { ConstantProperty } from "../../Source/Cesium.js";
-import { ModelGraphics } from "../../Source/Cesium.js";
-import { NodeTransformationProperty } from "../../Source/Cesium.js";
-import { PropertyBag } from "../../Source/Cesium.js";
-import { ClippingPlaneCollection } from "../../Source/Cesium.js";
-import { ColorBlendMode } from "../../Source/Cesium.js";
-import { HeightReference } from "../../Source/Cesium.js";
-import { ShadowMode } from "../../Source/Cesium.js";
+import {
+  Cartesian2,
+  Cartesian3,
+  Color,
+  CustomShader,
+  DistanceDisplayCondition,
+  JulianDate,
+  Quaternion,
+  ConstantProperty,
+  ModelGraphics,
+  NodeTransformationProperty,
+  PropertyBag,
+  ClippingPlaneCollection,
+  ColorBlendMode,
+  HeightReference,
+  ShadowMode,
+} from "../../../Source/Cesium.js";
 
 describe("DataSources/ModelGraphics", function () {
   it("creates expected instance from raw assignment and construction", function () {
@@ -33,6 +36,7 @@ describe("DataSources/ModelGraphics", function () {
       colorBlendMode: ColorBlendMode.HIGHLIGHT,
       colorBlendAmount: 0.5,
       clippingPlanes: new ClippingPlaneCollection(),
+      customShader: new CustomShader(),
       imageBasedLightingFactor: new Cartesian2(0.5, 0.5),
       lightColor: new Color(1.0, 1.0, 0.0, 1.0),
       nodeTransformations: {
@@ -63,6 +67,7 @@ describe("DataSources/ModelGraphics", function () {
     expect(model.colorBlendMode).toBeInstanceOf(ConstantProperty);
     expect(model.colorBlendAmount).toBeInstanceOf(ConstantProperty);
     expect(model.clippingPlanes).toBeInstanceOf(ConstantProperty);
+    expect(model.customShader).toBeInstanceOf(ConstantProperty);
     expect(model.imageBasedLightingFactor).toBeInstanceOf(ConstantProperty);
     expect(model.lightColor).toBeInstanceOf(ConstantProperty);
     expect(model.runAnimations).toBeInstanceOf(ConstantProperty);
@@ -92,6 +97,7 @@ describe("DataSources/ModelGraphics", function () {
     expect(model.clippingPlanes.getValue().planes).toEqual(
       options.clippingPlanes.planes
     );
+    expect(model.customShader.getValue()).toEqual(options.customShader);
     expect(model.imageBasedLightingFactor.getValue()).toEqual(
       options.imageBasedLightingFactor
     );
@@ -145,6 +151,7 @@ describe("DataSources/ModelGraphics", function () {
     source.colorBlendMode = new ConstantProperty(ColorBlendMode.HIGHLIGHT);
     source.colorBlendAmount = new ConstantProperty(0.5);
     source.clippingPlanes = new ConstantProperty(new ClippingPlaneCollection());
+    source.customShader = new ConstantProperty(new CustomShader());
     source.imageBasedLightingFactor = new ConstantProperty(
       new Cartesian2(0.5, 0.5)
     );
@@ -188,6 +195,7 @@ describe("DataSources/ModelGraphics", function () {
     expect(target.colorBlendMode).toBe(source.colorBlendMode);
     expect(target.colorBlendAmount).toBe(source.colorBlendAmount);
     expect(target.clippingPlanes).toBe(source.clippingPlanes);
+    expect(target.customShader).toBe(source.customShader);
     expect(target.imageBasedLightingFactor).toBe(
       source.imageBasedLightingFactor
     );
@@ -219,6 +227,7 @@ describe("DataSources/ModelGraphics", function () {
     source.colorBlendMode = new ConstantProperty(ColorBlendMode.HIGHLIGHT);
     source.colorBlendAmount = new ConstantProperty(0.5);
     source.clippingPlanes = new ConstantProperty(new ClippingPlaneCollection());
+    source.customShader = new ConstantProperty(new CustomShader());
     source.imageBasedLightingFactor = new ConstantProperty(
       new Cartesian2(0.5, 0.5)
     );
@@ -252,6 +261,7 @@ describe("DataSources/ModelGraphics", function () {
     const colorBlendMode = new ConstantProperty(ColorBlendMode.HIGHLIGHT);
     const colorBlendAmount = new ConstantProperty(0.5);
     const clippingPlanes = new ConstantProperty(new ClippingPlaneCollection());
+    const customShader = new ConstantProperty(new CustomShader());
     const imageBasedLightingFactor = new ConstantProperty(
       new Cartesian2(0.5, 0.5)
     );
@@ -282,6 +292,7 @@ describe("DataSources/ModelGraphics", function () {
     target.colorBlendMode = colorBlendMode;
     target.colorBlendAmount = colorBlendAmount;
     target.clippingPlanes = clippingPlanes;
+    target.customShader = customShader;
     target.imageBasedLightingFactor = imageBasedLightingFactor;
     target.lightColor = lightColor;
     target.runAnimations = runAnimations;
@@ -306,6 +317,7 @@ describe("DataSources/ModelGraphics", function () {
     expect(target.colorBlendMode).toBe(colorBlendMode);
     expect(target.colorBlendAmount).toBe(colorBlendAmount);
     expect(target.clippingPlanes).toBe(clippingPlanes);
+    expect(target.customShader).toBe(customShader);
     expect(target.imageBasedLightingFactor).toBe(imageBasedLightingFactor);
     expect(target.lightColor).toBe(lightColor);
     expect(target.runAnimations).toBe(runAnimations);
@@ -335,6 +347,7 @@ describe("DataSources/ModelGraphics", function () {
     source.colorBlendMode = new ConstantProperty(ColorBlendMode.HIGHLIGHT);
     source.colorBlendAmount = new ConstantProperty(0.5);
     source.clippingPlanes = new ConstantProperty(new ClippingPlaneCollection());
+    source.customShader = new ConstantProperty(new CustomShader());
     source.imageBasedLightingFactor = new ConstantProperty(
       new Cartesian2(0.5, 0.5)
     );
@@ -370,6 +383,7 @@ describe("DataSources/ModelGraphics", function () {
     expect(result.colorBlendMode).toBe(source.colorBlendMode);
     expect(result.colorBlendAmount).toBe(source.colorBlendAmount);
     expect(result.clippingPlanes).toBe(source.clippingPlanes);
+    expect(result.customShader).toBe(source.customShader);
     expect(result.imageBasedLightingFactor).toBe(
       source.imageBasedLightingFactor
     );

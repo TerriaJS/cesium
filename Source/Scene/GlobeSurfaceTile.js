@@ -750,22 +750,24 @@ function requestTileGeometry(surfaceTile, terrainProvider, x, y, level) {
       return;
     }
 
-    // Initially assume failure.  handleError may retry, in which case the state will
+    // Initially assume failure.  reportError may retry, in which case the state will
     // change to RECEIVING or UNLOADED.
     surfaceTile.terrainState = TerrainState.FAILED;
     surfaceTile.request = undefined;
 
     const message = `Failed to obtain terrain tile X: ${x} Y: ${y} Level: ${level}. Error message: "${error}"`;
-    terrainProvider._requestError = TileProviderError.handleError(
+    terrainProvider._requestError = TileProviderError.reportError(
       terrainProvider._requestError,
       terrainProvider,
       terrainProvider.errorEvent,
       message,
       x,
       y,
-      level,
-      doRequest
+      level
     );
+    if (terrainProvider._requestError.retry) {
+      doRequest();
+    }
   }
 
   function doRequest() {

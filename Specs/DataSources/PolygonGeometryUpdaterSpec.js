@@ -1,26 +1,31 @@
-import { ApproximateTerrainHeights } from "../../Source/Cesium.js";
-import { ArcType } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Color } from "../../Source/Cesium.js";
-import { CoplanarPolygonGeometry } from "../../Source/Cesium.js";
-import { CoplanarPolygonOutlineGeometry } from "../../Source/Cesium.js";
-import { Ellipsoid } from "../../Source/Cesium.js";
-import { JulianDate } from "../../Source/Cesium.js";
+import {
+  ApproximateTerrainHeights,
+  ArcType,
+  Cartesian2,
+  Cartesian3,
+  Color,
+  CoplanarPolygonGeometry,
+  CoplanarPolygonOutlineGeometry,
+  Ellipsoid,
+  JulianDate,
+  PolygonGeometry,
+  PolygonHierarchy,
+  PolygonOutlineGeometry,
+  TimeIntervalCollection,
+  ConstantProperty,
+  Entity,
+  PolygonGeometryUpdater,
+  PolygonGraphics,
+  PropertyArray,
+  SampledPositionProperty,
+  SampledProperty,
+  GroundPrimitive,
+  HeightReference,
+  PrimitiveCollection,
+} from "../../../Source/Cesium.js";
+
 import { Math as CesiumMath } from "../../Source/Cesium.js";
-import { PolygonGeometry } from "../../Source/Cesium.js";
-import { PolygonHierarchy } from "../../Source/Cesium.js";
-import { PolygonOutlineGeometry } from "../../Source/Cesium.js";
-import { TimeIntervalCollection } from "../../Source/Cesium.js";
-import { ConstantProperty } from "../../Source/Cesium.js";
-import { Entity } from "../../Source/Cesium.js";
-import { PolygonGeometryUpdater } from "../../Source/Cesium.js";
-import { PolygonGraphics } from "../../Source/Cesium.js";
-import { PropertyArray } from "../../Source/Cesium.js";
-import { SampledPositionProperty } from "../../Source/Cesium.js";
-import { SampledProperty } from "../../Source/Cesium.js";
-import { GroundPrimitive } from "../../Source/Cesium.js";
-import { HeightReference } from "../../Source/Cesium.js";
-import { PrimitiveCollection } from "../../Source/Cesium.js";
+
 import createDynamicGeometryUpdaterSpecs from "../createDynamicGeometryUpdaterSpecs.js";
 import createDynamicProperty from "../createDynamicProperty.js";
 import createGeometryUpdaterGroundGeometrySpecs from "../createGeometryUpdaterGroundGeometrySpecs.js";
@@ -227,6 +232,7 @@ describe(
         closeTop: true,
         closeBottom: false,
         arcType: ArcType.GEODESIC,
+        textureCoordinates: [[0.5, 0.3]],
       };
 
       const entity = createBasicPolygon();
@@ -243,6 +249,9 @@ describe(
       polygon.extrudedHeight = new ConstantProperty(options.extrudedHeight);
       polygon.granularity = new ConstantProperty(options.granularity);
       polygon.arcType = new ConstantProperty(options.arcType);
+      polygon.textureCoordinates = new ConstantProperty(
+        options.textureCoordinates
+      );
 
       const updater = new PolygonGeometryUpdater(entity, scene);
 
@@ -258,6 +267,7 @@ describe(
       expect(geometry._closeTop).toEqual(options.closeTop);
       expect(geometry._closeBottom).toEqual(options.closeBottom);
       expect(geometry._arcType).toEqual(options.arcType);
+      expect(geometry._textureCoordinates).toEqual(options.textureCoordinates);
       expect(geometry._offsetAttribute).toBeUndefined();
 
       instance = updater.createOutlineGeometryInstance(time);
@@ -272,12 +282,14 @@ describe(
 
     it("Creates coplanar polygon", function () {
       const stRotation = 12;
+      const textureCoordinates = [0.3, 0.4];
 
       const entity = createVerticalPolygon();
 
       const polygon = entity.polygon;
       polygon.outline = true;
       polygon.stRotation = new ConstantProperty(stRotation);
+      polygon.textureCoordinates = new ConstantProperty(textureCoordinates);
 
       const updater = new PolygonGeometryUpdater(entity, scene);
 
@@ -287,6 +299,7 @@ describe(
       geometry = instance.geometry;
       expect(geometry).toBeInstanceOf(CoplanarPolygonGeometry);
       expect(geometry._stRotation).toEqual(stRotation);
+      expect(geometry._textureCoordinates).toEqual(textureCoordinates);
 
       instance = updater.createOutlineGeometryInstance(time);
       geometry = instance.geometry;
@@ -354,6 +367,14 @@ describe(
       polygon.perPositionHeight = createDynamicProperty(false);
       polygon.granularity = createDynamicProperty(2);
       polygon.stRotation = createDynamicProperty(1);
+      polygon.textureCoordinates = createDynamicProperty({
+        positions: [
+          new Cartesian2(0.5, 1),
+          new Cartesian2(0, 0.5),
+          new Cartesian2(0.5, 0),
+          new Cartesian2(1, 0.5),
+        ],
+      });
       polygon.closeTop = createDynamicProperty(false);
       polygon.closeBottom = createDynamicProperty(false);
       polygon.arcType = createDynamicProperty(ArcType.RHUMB);
@@ -378,6 +399,9 @@ describe(
       );
       expect(options.granularity).toEqual(polygon.granularity.getValue());
       expect(options.stRotation).toEqual(polygon.stRotation.getValue());
+      expect(options.textureCoordinates).toEqual(
+        polygon.textureCoordinates.getValue()
+      );
       expect(options.closeTop).toEqual(polygon.closeTop.getValue());
       expect(options.closeBottom).toEqual(polygon.closeBottom.getValue());
       expect(options.arcType).toEqual(polygon.arcType.getValue());

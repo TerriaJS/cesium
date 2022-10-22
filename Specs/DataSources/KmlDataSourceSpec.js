@@ -1,41 +1,45 @@
-import { ArcType } from "../../Source/Cesium.js";
-import { BoundingRectangle } from "../../Source/Cesium.js";
-import { Cartesian2 } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { ClockRange } from "../../Source/Cesium.js";
-import { ClockStep } from "../../Source/Cesium.js";
-import { Color } from "../../Source/Cesium.js";
-import { combine } from "../../Source/Cesium.js";
-import { Credit } from "../../Source/Cesium.js";
-import { defer } from "../../Source/Cesium.js";
-import { Ellipsoid } from "../../Source/Cesium.js";
-import { Event } from "../../Source/Cesium.js";
-import { HeadingPitchRange } from "../../Source/Cesium.js";
-import { HeadingPitchRoll } from "../../Source/Cesium.js";
-import { isDataUri } from "../../Source/Cesium.js";
-import { Iso8601 } from "../../Source/Cesium.js";
-import { JulianDate } from "../../Source/Cesium.js";
+import {
+  ArcType,
+  BoundingRectangle,
+  Cartesian2,
+  Cartesian3,
+  ClockRange,
+  ClockStep,
+  Color,
+  combine,
+  Credit,
+  defer,
+  Ellipsoid,
+  Event,
+  HeadingPitchRange,
+  HeadingPitchRoll,
+  isDataUri,
+  Iso8601,
+  JulianDate,
+  NearFarScalar,
+  PerspectiveFrustum,
+  Rectangle,
+  RequestErrorEvent,
+  Resource,
+  RuntimeError,
+  ColorMaterialProperty,
+  EntityCollection,
+  ImageMaterialProperty,
+  KmlCamera,
+  KmlDataSource,
+  KmlLookAt,
+  KmlTour,
+  KmlTourFlyTo,
+  KmlTourWait,
+  Camera,
+  HeightReference,
+  HorizontalOrigin,
+  LabelStyle,
+  SceneMode,
+} from "../../../Source/Cesium.js";
+
 import { Math as CesiumMath } from "../../Source/Cesium.js";
-import { NearFarScalar } from "../../Source/Cesium.js";
-import { PerspectiveFrustum } from "../../Source/Cesium.js";
-import { Rectangle } from "../../Source/Cesium.js";
-import { RequestErrorEvent } from "../../Source/Cesium.js";
-import { Resource } from "../../Source/Cesium.js";
-import { RuntimeError } from "../../Source/Cesium.js";
-import { ColorMaterialProperty } from "../../Source/Cesium.js";
-import { EntityCollection } from "../../Source/Cesium.js";
-import { ImageMaterialProperty } from "../../Source/Cesium.js";
-import { KmlCamera } from "../../Source/Cesium.js";
-import { KmlDataSource } from "../../Source/Cesium.js";
-import { KmlLookAt } from "../../Source/Cesium.js";
-import { KmlTour } from "../../Source/Cesium.js";
-import { KmlTourFlyTo } from "../../Source/Cesium.js";
-import { KmlTourWait } from "../../Source/Cesium.js";
-import { Camera } from "../../Source/Cesium.js";
-import { HeightReference } from "../../Source/Cesium.js";
-import { HorizontalOrigin } from "../../Source/Cesium.js";
-import { LabelStyle } from "../../Source/Cesium.js";
-import { SceneMode } from "../../Source/Cesium.js";
+
 import createCamera from "../createCamera.js";
 import pollToPromise from "../pollToPromise.js";
 
@@ -97,34 +101,36 @@ describe("DataSources/KmlDataSource", function () {
 
   const screenOverlayContainer = document.createElement("div");
 
+  const uberCamera = {
+    positionWC: new Cartesian3(0.0, 0.0, 0.0),
+    directionWC: new Cartesian3(0.0, 0.0, 1.0),
+    upWC: new Cartesian3(0.0, 1.0, 0.0),
+    pitch: 0.0,
+    heading: 0.0,
+    frustum: new PerspectiveFrustum(),
+    computeViewRectangle: function () {
+      return Rectangle.MAX_VALUE;
+    },
+    pickEllipsoid: function () {
+      return undefined;
+    },
+  };
+
+  const uberCanvas = {
+    clientWidth: 512,
+    clientHeight: 512,
+  };
+
   const options = {
-    camera: {
-      positionWC: new Cartesian3(0.0, 0.0, 0.0),
-      directionWC: new Cartesian3(0.0, 0.0, 1.0),
-      upWC: new Cartesian3(0.0, 1.0, 0.0),
-      pitch: 0.0,
-      heading: 0.0,
-      frustum: new PerspectiveFrustum(),
-      computeViewRectangle: function () {
-        return Rectangle.MAX_VALUE;
-      },
-      pickEllipsoid: function () {
-        return undefined;
-      },
-    },
-    canvas: {
-      clientWidth: 512,
-      clientHeight: 512,
-    },
     credit: "This is my credit",
     screenOverlayContainer: screenOverlayContainer,
   };
-  options.camera.frustum.fov = CesiumMath.PI_OVER_FOUR;
-  options.camera.frustum.aspectRatio = 1.0;
+  uberCamera.frustum.fov = CesiumMath.PI_OVER_FOUR;
+  uberCamera.frustum.aspectRatio = 1.0;
 
   beforeEach(function () {
     // Reset camera - x value will change during onStop tests
-    options.camera.positionWC.x = 0.0;
+    uberCamera.positionWC.x = 0.0;
   });
 
   it("default constructor has expected values", function () {
@@ -423,6 +429,13 @@ describe("DataSources/KmlDataSource", function () {
       });
   });
 
+  it("can handle embedded data tags with missing source attributes", function () {
+    const dataSource = new KmlDataSource(options);
+    return Resource.fetchBlob("Data/KML/simpleScriptMissingSrcAttribute.kmz")
+      .then((blob) => dataSource.load(blob))
+      .catch(fail);
+  });
+
   it("sets DataSource name from Document", function () {
     const kml =
       '<?xml version="1.0" encoding="UTF-8"?>\
@@ -431,8 +444,6 @@ describe("DataSources/KmlDataSource", function () {
             </Document>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       sourceUri: "NameFromUri.kml",
     }).then(function (dataSource) {
       expect(dataSource.name).toEqual("NameInKml", options);
@@ -449,8 +460,6 @@ describe("DataSources/KmlDataSource", function () {
             </kml>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       sourceUri: "NameFromUri.kml",
     }).then(function (dataSource) {
       expect(dataSource.name).toEqual("NameInKml", options);
@@ -464,8 +473,6 @@ describe("DataSources/KmlDataSource", function () {
             </Document>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       sourceUri: "NameFromUri.kml",
     }).then(function (dataSource) {
       expect(dataSource.name).toEqual("NameFromUri.kml");
@@ -2166,8 +2173,6 @@ describe("DataSources/KmlDataSource", function () {
           </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       sourceUri: "http://test.invalid",
     }).then(function (dataSource) {
       const entities = dataSource.entities.values;
@@ -2537,8 +2542,6 @@ describe("DataSources/KmlDataSource", function () {
         </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       sourceUri: "http://test.invalid",
     }).then(function (dataSource) {
       const entity = dataSource.entities.values[0];
@@ -3153,8 +3156,6 @@ describe("DataSources/KmlDataSource", function () {
           </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       clampToGround: true,
     }).then(function (dataSource) {
       const entities = dataSource.entities.values;
@@ -3957,8 +3958,6 @@ describe("DataSources/KmlDataSource", function () {
             </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       clampToGround: true,
     }).then(function (dataSource) {
       const time1 = JulianDate.fromIso8601("2000-01-01T00:00:00Z");
@@ -4012,8 +4011,6 @@ describe("DataSources/KmlDataSource", function () {
             </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       clampToGround: true,
     }).then(function (dataSource) {
       const time1 = JulianDate.fromIso8601("2000-01-01T00:00:00Z");
@@ -4169,8 +4166,6 @@ describe("DataSources/KmlDataSource", function () {
           </Placemark>';
 
     return KmlDataSource.load(parser.parseFromString(kml, "text/xml"), {
-      camera: options.camera,
-      canvas: options.canvas,
       clampToGround: true,
     }).then(function (dataSource) {
       const time1 = JulianDate.fromIso8601("2000-01-01T00:00:00Z");
@@ -4536,7 +4531,11 @@ describe("DataSources/KmlDataSource", function () {
 
     return KmlDataSource.load(
       parser.parseFromString(kml, "text/xml"),
-      options
+      Object.assign({
+        canvas: uberCanvas,
+        camera: uberCamera,
+        options: options,
+      })
     ).then(function (dataSource) {
       const entities = dataSource.entities.values;
       expect(entities.length).toEqual(3);
@@ -4551,7 +4550,7 @@ describe("DataSources/KmlDataSource", function () {
       dataSource.refreshEvent.addEventListener(spy);
 
       // Move the camera and call update to set the last camera view
-      options.camera.positionWC.x = 1.0;
+      uberCamera.positionWC.x = 1.0;
       dataSource.update(0);
 
       return pollToPromise(function () {
@@ -4764,7 +4763,10 @@ describe("DataSources/KmlDataSource", function () {
       deferred.reject();
     });
 
-    KmlDataSource.load(parser.parseFromString(kml, "text/xml"), options);
+    KmlDataSource.load(
+      parser.parseFromString(kml, "text/xml"),
+      Object.assign({ camera: uberCamera, canvas: uberCanvas }, options)
+    );
 
     return requestNetworkLink.promise.then(function (url) {
       expect(url).toEqual(
@@ -4800,7 +4802,10 @@ describe("DataSources/KmlDataSource", function () {
       deferred.reject();
     });
 
-    KmlDataSource.load(parser.parseFromString(kml, "text/xml"), options);
+    const src = new KmlDataSource();
+    src.camera = uberCamera;
+    src.canvas = uberCanvas;
+    src.load(parser.parseFromString(kml, "text/xml"), options);
 
     return requestNetworkLink.promise.then(function (url) {
       expect(url).toEqual(
@@ -4870,7 +4875,7 @@ describe("DataSources/KmlDataSource", function () {
           return undefined;
         },
       },
-      canvas: options.canvas,
+      canvas: uberCanvas,
     };
 
     return KmlDataSource.load(
@@ -5469,7 +5474,7 @@ describe("DataSources/KmlDataSource", function () {
       parser.parseFromString(kml, "text/xml"),
       options
     ).then(function (dataSource) {
-      expect(dataSource.entities.values.length).toEqual(2);
+      expect(dataSource.entities.values.length).toEqual(1);
       expect(console.warn.calls.count()).toEqual(1);
       expect(console.warn).toHaveBeenCalledWith(
         "KML - Unsupported viewRefreshMode: onRegion"
@@ -5648,11 +5653,11 @@ describe("DataSources/KmlDataSource", function () {
     const camera = createCamera({
       offset: Cartesian3.fromDegrees(-110, 30, 1000),
     });
-    Camera.clone(options.camera, camera);
+    Camera.clone(uberCamera, camera);
 
     const kmlOptions = {
       camera: camera,
-      canvas: options.canvas,
+      canvas: uberCanvas,
     };
 
     camera._mode = SceneMode.MORPHING;

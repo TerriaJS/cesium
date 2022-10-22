@@ -1,23 +1,26 @@
-import { BoundingSphere } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Clock } from "../../Source/Cesium.js";
-import { ClockStep } from "../../Source/Cesium.js";
-import { defaultValue } from "../../Source/Cesium.js";
-import { defined } from "../../Source/Cesium.js";
-import { HeadingPitchRange } from "../../Source/Cesium.js";
-import { HeadingPitchRoll } from "../../Source/Cesium.js";
-import { JulianDate } from "../../Source/Cesium.js";
-import { Matrix4 } from "../../Source/Cesium.js";
-import { Resource } from "../../Source/Cesium.js";
-import { TimeIntervalCollection } from "../../Source/Cesium.js";
-import { Transforms } from "../../Source/Cesium.js";
-import { Cesium3DTileStyle } from "../../Source/Cesium.js";
-import { ClippingPlane } from "../../Source/Cesium.js";
-import { ClippingPlaneCollection } from "../../Source/Cesium.js";
-import { DracoLoader } from "../../Source/Cesium.js";
-import { PointCloudEyeDomeLighting } from "../../Source/Cesium.js";
-import { ShadowMode } from "../../Source/Cesium.js";
-import { TimeDynamicPointCloud } from "../../Source/Cesium.js";
+import {
+  BoundingSphere,
+  Cartesian3,
+  Clock,
+  ClockStep,
+  defaultValue,
+  defined,
+  HeadingPitchRange,
+  HeadingPitchRoll,
+  JulianDate,
+  Matrix4,
+  Resource,
+  TimeIntervalCollection,
+  Transforms,
+  Cesium3DTileStyle,
+  ClippingPlane,
+  ClippingPlaneCollection,
+  DracoLoader,
+  PointCloudEyeDomeLighting,
+  ShadowMode,
+  TimeDynamicPointCloud,
+} from "../../../Source/Cesium.js";
+
 import createCanvas from "../createCanvas.js";
 import createScene from "../createScene.js";
 import pollToPromise from "../pollToPromise.js";
@@ -466,20 +469,17 @@ describe(
           pointSize: 10,
         }),
       });
-      return loadAllFrames(pointCloud)
-        .then(function () {
-          expect(scene).toRender([0, 0, 255, 255]);
-          pointCloud.style = new Cesium3DTileStyle({
-            color: 'color("lime")',
-            pointSize: 10,
-          });
-          return pointCloud.style.readyPromise;
-        })
-        .then(function () {
-          expect(scene).toRender([0, 255, 0, 255]);
-          goToFrame(1); // Also check that the style is updated for the next frame
-          expect(scene).toRender([0, 255, 0, 255]);
+      return loadAllFrames(pointCloud).then(function () {
+        expect(scene).toRender([0, 0, 255, 255]);
+        pointCloud.style = new Cesium3DTileStyle({
+          color: 'color("lime")',
+          pointSize: 10,
         });
+
+        expect(scene).toRender([0, 255, 0, 255]);
+        goToFrame(1); // Also check that the style is updated for the next frame
+        expect(scene).toRender([0, 255, 0, 255]);
+      });
     });
 
     it("make style dirty", function () {
@@ -779,10 +779,9 @@ describe(
       });
     });
 
-    // Throws an un-catchable 404
-    // https://github.com/CesiumGS/cesium/issues/10178
-    xit("frame failed event is raised from request failure", function () {
+    it("frame failed event is raised from request failure", function () {
       const pointCloud = createTimeDynamicPointCloud();
+      let frameRejectedCount = 0;
       spyOn(Resource._Implementations, "loadWithXhr").and.callFake(function (
         request,
         responseType,
@@ -792,7 +791,13 @@ describe(
         deferred,
         overrideMimeType
       ) {
-        deferred.reject("404");
+        if (request.toString().includes("PointCloudTimeDynamic")) {
+          deferred.reject("404");
+          // Allow the promise a frame to resolve
+          deferred.promise.catch(function () {
+            frameRejectedCount++;
+          });
+        }
       });
       const spyUpdate = jasmine.createSpy("listener");
       pointCloud.frameFailed.addEventListener(spyUpdate);
@@ -803,12 +808,18 @@ describe(
         scene.renderForSpecs();
       }
 
-      for (i = 0; i < 5; ++i) {
-        const arg = spyUpdate.calls.argsFor(i)[0];
-        expect(arg).toBeDefined();
-        expect(arg.uri).toContain(`${i}.pnts`);
-        expect(arg.message).toBe("404");
-      }
+      return pollToPromise(function () {
+        scene.renderForSpecs();
+        return frameRejectedCount === 5;
+      }).then(function () {
+        expect(spyUpdate.calls.count()).toEqual(5);
+        for (i = 0; i < 5; ++i) {
+          const arg = spyUpdate.calls.argsFor(i)[0];
+          expect(arg).toBeDefined();
+          expect(arg.uri).toContain(`${i}.pnts`);
+          expect(arg.message).toBe("404");
+        }
+      });
     });
 
     it("failed frame event is raised from Draco failure", function () {

@@ -7,7 +7,7 @@ import defined from "../Core/defined.js";
 import DeveloperError from "../Core/DeveloperError.js";
 import CesiumMath from "../Core/Math.js";
 import RuntimeError from "../Core/RuntimeError.js";
-import jsep from "../ThirdParty/jsep.js";
+import jsep from "jsep";
 import ExpressionNodeType from "./ExpressionNodeType.js";
 
 /**
@@ -2160,7 +2160,7 @@ Node.prototype.getShaderExpression = function (
       return Expression.NULL_SENTINEL;
     case ExpressionNodeType.BUILTIN_VARIABLE:
       if (value === "tiles3d_tileset_time") {
-        return "u_time";
+        return value;
       }
   }
 };

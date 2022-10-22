@@ -1,19 +1,21 @@
-import { Credit } from "../../Source/Cesium.js";
-import { defaultValue } from "../../Source/Cesium.js";
-import { IonResource } from "../../Source/Cesium.js";
-import { RequestScheduler } from "../../Source/Cesium.js";
-import { Resource } from "../../Source/Cesium.js";
-import { RuntimeError } from "../../Source/Cesium.js";
-import { ArcGisMapServerImageryProvider } from "../../Source/Cesium.js";
-import { BingMapsImageryProvider } from "../../Source/Cesium.js";
-import { GoogleEarthEnterpriseMapsProvider } from "../../Source/Cesium.js";
-import { ImageryProvider } from "../../Source/Cesium.js";
-import { IonImageryProvider } from "../../Source/Cesium.js";
-import { MapboxImageryProvider } from "../../Source/Cesium.js";
-import { SingleTileImageryProvider } from "../../Source/Cesium.js";
-import { UrlTemplateImageryProvider } from "../../Source/Cesium.js";
-import { WebMapServiceImageryProvider } from "../../Source/Cesium.js";
-import { WebMapTileServiceImageryProvider } from "../../Source/Cesium.js";
+import {
+  Credit,
+  defaultValue,
+  IonResource,
+  RequestScheduler,
+  Resource,
+  RuntimeError,
+  ArcGisMapServerImageryProvider,
+  BingMapsImageryProvider,
+  GoogleEarthEnterpriseMapsProvider,
+  ImageryProvider,
+  IonImageryProvider,
+  MapboxImageryProvider,
+  SingleTileImageryProvider,
+  UrlTemplateImageryProvider,
+  WebMapServiceImageryProvider,
+  WebMapTileServiceImageryProvider,
+} from "../../../Source/Cesium.js";
 
 describe("Scene/IonImageryProvider", function () {
   function createTestProvider(endpointData) {
@@ -62,7 +64,7 @@ describe("Scene/IonImageryProvider", function () {
     }).toThrowDeveloperError(ImageryProvider);
   });
 
-  it("readyPromise rejects with non-imagery asset", function (done) {
+  it("readyPromise rejects with non-imagery asset", function () {
     const provider = createTestProvider({
       type: "3DTILES",
       url: "http://test.invalid/layer",
@@ -80,7 +82,7 @@ describe("Scene/IonImageryProvider", function () {
       });
   });
 
-  it("readyPromise rejects with unknown external asset type", function (done) {
+  it("readyPromise rejects with unknown external asset type", function () {
     const provider = createTestProvider({
       type: "IMAGERY",
       externalType: "TUBELCANE",
@@ -259,6 +261,8 @@ describe("Scene/IonImageryProvider", function () {
     expect(function () {
       return provider.getTileCredits(1, 2, 3);
     }).toThrowDeveloperError();
+
+    return provider.readyPromise;
   });
 
   it("handles server-sent credits", function () {

@@ -1,15 +1,19 @@
-import { ArcType } from "../../Source/Cesium.js";
-import { arrayFill } from "../../Source/Cesium.js";
-import { BoundingSphere } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Cartographic } from "../../Source/Cesium.js";
-import { Ellipsoid } from "../../Source/Cesium.js";
-import { GeometryOffsetAttribute } from "../../Source/Cesium.js";
-import { GeometryPipeline } from "../../Source/Cesium.js";
+import {
+  ArcType,
+  BoundingSphere,
+  Cartesian2,
+  Cartesian3,
+  Cartographic,
+  Ellipsoid,
+  GeometryOffsetAttribute,
+  GeometryPipeline,
+  PolygonGeometry,
+  Rectangle,
+  VertexFormat,
+} from "../../../Source/Cesium.js";
+
 import { Math as CesiumMath } from "../../Source/Cesium.js";
-import { PolygonGeometry } from "../../Source/Cesium.js";
-import { Rectangle } from "../../Source/Cesium.js";
-import { VertexFormat } from "../../Source/Cesium.js";
+
 import createPackableSpecs from "../createPackableSpecs.js";
 
 describe("Core/PolygonGeometry", function () {
@@ -900,8 +904,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 1);
+    const expected = new Array(offset.length).fill(1);
     expect(offset).toEqual(expected);
   });
 
@@ -929,10 +932,10 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 0);
-    expected = arrayFill(expected, 1, 0, 13);
-    expected = arrayFill(expected, 1, 26, 38);
+    const expected = new Array(offset.length)
+      .fill(0)
+      .fill(1, 0, 13)
+      .fill(1, 26, 38);
     expect(offset).toEqual(expected);
   });
 
@@ -961,9 +964,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 0);
-    expected = arrayFill(expected, 1, 13, 25);
+    const expected = new Array(offset.length).fill(0).fill(1, 13, 25);
     expect(offset).toEqual(expected);
   });
 
@@ -992,9 +993,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 0);
-    expected = arrayFill(expected, 1, 0, 25);
+    const expected = new Array(offset.length).fill(0).fill(1, 0, 25);
     expect(offset).toEqual(expected);
   });
 
@@ -1024,9 +1023,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 0);
-    expected = arrayFill(expected, 1, 0, 12);
+    const expected = new Array(offset.length).fill(0).fill(1, 0, 12);
     expect(offset).toEqual(expected);
   });
 
@@ -1054,8 +1051,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 1);
+    const expected = new Array(offset.length).fill(1);
     expect(offset).toEqual(expected);
   });
 
@@ -1084,8 +1080,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 1);
+    const expected = new Array(offset.length).fill(1);
     expect(offset).toEqual(expected);
   });
 
@@ -1114,8 +1109,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 1);
+    const expected = new Array(offset.length).fill(1);
     expect(offset).toEqual(expected);
   });
 
@@ -1145,8 +1139,7 @@ describe("Core/PolygonGeometry", function () {
 
     const offset = p.attributes.applyOffset.values;
     expect(offset.length).toEqual(numVertices);
-    let expected = new Array(offset.length);
-    expected = arrayFill(expected, 1);
+    const expected = new Array(offset.length).fill(1);
     expect(offset).toEqual(expected);
   });
 
@@ -1283,6 +1276,43 @@ describe("Core/PolygonGeometry", function () {
     for (let i = 0; i < st.length; i++) {
       expect(st[i]).toBeGreaterThanOrEqual(0);
       expect(st[i]).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("uses explicit texture coordinates if defined in options", function () {
+    const textureCoordinates = {
+      positions: [
+        new Cartesian2(0, 0),
+        new Cartesian2(1, 0),
+        new Cartesian2(1, 1),
+        new Cartesian2(0, 1),
+      ],
+    };
+    const p = PolygonGeometry.createGeometry(
+      new PolygonGeometry({
+        vertexFormat: VertexFormat.POSITION_AND_ST,
+        polygonHierarchy: {
+          positions: Cartesian3.fromDegreesArray([
+            -100.5,
+            30.0,
+            -100.0,
+            30.0,
+            -100.0,
+            30.5,
+            -100.5,
+            30.5,
+          ]),
+        },
+        textureCoordinates: textureCoordinates,
+        height: 150000,
+        granularity: CesiumMath.PI,
+      })
+    );
+
+    const st = p.attributes.st.values;
+    for (let i = 0; i < textureCoordinates.positions.length; i++) {
+      expect(st[i * 2 + 0]).toEqual(textureCoordinates.positions[i].x);
+      expect(st[i * 2 + 1]).toEqual(textureCoordinates.positions[i].y);
     }
   });
 
@@ -1833,6 +1863,8 @@ describe("Core/PolygonGeometry", function () {
     );
   });
 
+  // pack without explicit texture coordinates
+
   const positions = Cartesian3.fromDegreesArray([
     -12.4,
     3.5,
@@ -1887,6 +1919,12 @@ describe("Core/PolygonGeometry", function () {
     }
   }
 
+  function addPositions2D(array, positions) {
+    for (let i = 0; i < positions.length; ++i) {
+      array.push(positions[i].x, positions[i].y);
+    }
+  }
+
   const packedInstance = [3.0, 1.0];
   addPositions(packedInstance, positions);
   packedInstance.push(3.0, 1.0);
@@ -1911,7 +1949,65 @@ describe("Core/PolygonGeometry", function () {
     0,
     -1,
     ArcType.GEODESIC,
-    54
+    -1,
+    55
   );
   createPackableSpecs(PolygonGeometry, polygon, packedInstance);
+
+  // pack with explicit texture coordinates
+
+  const textureCoordinates = {
+    positions: [
+      new Cartesian2(0, 0),
+      new Cartesian2(1, 0),
+      new Cartesian2(0, 1),
+      new Cartesian2(0.1, 0.1),
+      new Cartesian2(0.5, 0.1),
+      new Cartesian2(0.1, 0.5),
+      new Cartesian2(0.2, 0.2),
+      new Cartesian2(0.3, 0.2),
+      new Cartesian2(0.2, 0.3),
+    ],
+    holes: undefined,
+  };
+
+  const polygonTextured = new PolygonGeometry({
+    vertexFormat: VertexFormat.POSITION_ONLY,
+    polygonHierarchy: hierarchy,
+    textureCoordinates: textureCoordinates,
+    granularity: CesiumMath.PI_OVER_THREE,
+    perPositionHeight: true,
+    closeTop: false,
+    closeBottom: true,
+  });
+
+  const packedInstanceTextured = [3.0, 1.0];
+  addPositions(packedInstanceTextured, positions);
+  packedInstanceTextured.push(3.0, 1.0);
+  addPositions(packedInstanceTextured, holePositions0);
+  packedInstanceTextured.push(3.0, 0.0);
+  addPositions(packedInstanceTextured, holePositions1);
+  packedInstanceTextured.push(
+    Ellipsoid.WGS84.radii.x,
+    Ellipsoid.WGS84.radii.y,
+    Ellipsoid.WGS84.radii.z
+  );
+  packedInstanceTextured.push(1.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  packedInstanceTextured.push(
+    0.0,
+    0.0,
+    CesiumMath.PI_OVER_THREE,
+    0.0,
+    0.0,
+    1.0,
+    0,
+    1,
+    0,
+    -1,
+    ArcType.GEODESIC
+  );
+  packedInstanceTextured.push(9.0, 0.0);
+  addPositions2D(packedInstanceTextured, textureCoordinates.positions);
+  packedInstanceTextured.push(74);
+  createPackableSpecs(PolygonGeometry, polygonTextured, packedInstanceTextured);
 });

@@ -5,7 +5,6 @@ import ClockStep from "../Core/ClockStep.js";
 import Color from "../Core/Color.js";
 import createGuid from "../Core/createGuid.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import DeveloperError from "../Core/DeveloperError.js";
 import Event from "../Core/Event.js";
@@ -21,7 +20,7 @@ import HeightReference from "../Scene/HeightReference.js";
 import HorizontalOrigin from "../Scene/HorizontalOrigin.js";
 import LabelStyle from "../Scene/LabelStyle.js";
 import VerticalOrigin from "../Scene/VerticalOrigin.js";
-import Autolinker from "../ThirdParty/Autolinker.js";
+import Autolinker from "autolinker";
 import BillboardGraphics from "./BillboardGraphics.js";
 import ConstantProperty from "./ConstantProperty.js";
 import DataSource from "./DataSource.js";
@@ -62,16 +61,16 @@ const namespaces = {
 };
 
 function readBlobAsText(blob) {
-  const deferred = defer();
-  const reader = new FileReader();
-  reader.addEventListener("load", function () {
-    deferred.resolve(reader.result);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", function () {
+      resolve(reader.result);
+    });
+    reader.addEventListener("error", function () {
+      reject(reader.error);
+    });
+    reader.readAsText(blob);
   });
-  reader.addEventListener("error", function () {
-    deferred.reject(reader.error);
-  });
-  reader.readAsText(blob);
-  return deferred.promise;
 }
 
 function getOrCreateEntity(node, entityCollection) {

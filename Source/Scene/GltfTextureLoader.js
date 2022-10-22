@@ -1,7 +1,6 @@
 import Check from "../Core/Check.js";
 import CesiumMath from "../Core/Math.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import PixelFormat from "../Core/PixelFormat.js";
 import Texture from "../Renderer/Texture.js";
@@ -11,6 +10,7 @@ import GltfLoaderUtil from "./GltfLoaderUtil.js";
 import JobType from "./JobType.js";
 import ResourceLoader from "./ResourceLoader.js";
 import ResourceLoaderState from "./ResourceLoaderState.js";
+import resizeImageToNextPowerOfTwo from "../Core/resizeImageToNextPowerOfTwo.js";
 
 /**
  * Loads a glTF texture.
@@ -34,7 +34,7 @@ import ResourceLoaderState from "./ResourceLoaderState.js";
  *
  * @private
  */
-export default function GltfTextureLoader(options) {
+function GltfTextureLoader(options) {
   options = defaultValue(options, defaultValue.EMPTY_OBJECT);
   const resourceCache = options.resourceCache;
   const gltf = options.gltf;
@@ -77,7 +77,8 @@ export default function GltfTextureLoader(options) {
   this._mipLevels = undefined;
   this._texture = undefined;
   this._state = ResourceLoaderState.UNLOADED;
-  this._promise = defer();
+  this._promise = undefined;
+  this._process = function (loader, frameState) {};
 }
 
 if (defined(Object.create)) {
@@ -87,17 +88,17 @@ if (defined(Object.create)) {
 
 Object.defineProperties(GltfTextureLoader.prototype, {
   /**
-   * A promise that resolves to the resource when the resource is ready.
+   * A promise that resolves to the resource when the resource is ready, or undefined if the resource hasn't started loading.
    *
    * @memberof GltfTextureLoader.prototype
    *
-   * @type {Promise.<GltfTextureLoader>}
+   * @type {Promise.<GltfTextureLoader>|undefined}
    * @readonly
    * @private
    */
   promise: {
     get: function () {
-      return this._promise.promise;
+      return this._promise;
     },
   },
   /**
@@ -130,8 +131,11 @@ Object.defineProperties(GltfTextureLoader.prototype, {
   },
 });
 
+const scratchTextureJob = new CreateTextureJob();
+
 /**
  * Loads the resource.
+ * @returns {Promise.<GltfDracoLoader>} A promise which resolves to the loader when the resource loading is completed.
  * @private
  */
 GltfTextureLoader.prototype.load = function () {
@@ -145,10 +149,56 @@ GltfTextureLoader.prototype.load = function () {
 
   this._imageLoader = imageLoader;
   this._state = ResourceLoaderState.LOADING;
-
   const that = this;
+  const processPromise = new Promise(function (resolve) {
+    that._process = function (loader, frameState) {
+      if (defined(loader._texture)) {
+        // Already created texture
+        return;
+      }
 
-  imageLoader.promise
+      if (!defined(loader._image)) {
+        // Not ready to create texture
+        return;
+      }
+
+      let texture;
+
+      if (loader._asynchronous) {
+        const textureJob = scratchTextureJob;
+        textureJob.set(
+          loader._gltf,
+          loader._textureInfo,
+          loader._image,
+          loader._mipLevels,
+          frameState.context
+        );
+        const jobScheduler = frameState.jobScheduler;
+        if (!jobScheduler.execute(textureJob, JobType.TEXTURE)) {
+          // Job scheduler is full. Try again next frame.
+          return;
+        }
+        texture = textureJob.texture;
+      } else {
+        texture = createTexture(
+          loader._gltf,
+          loader._textureInfo,
+          loader._image,
+          loader._mipLevels,
+          frameState.context
+        );
+      }
+
+      // Unload everything except the texture
+      loader.unload();
+
+      loader._texture = texture;
+      loader._state = ResourceLoaderState.READY;
+      resolve(loader);
+    };
+  });
+
+  this._promise = imageLoader.promise
     .then(function () {
       if (that.isDestroyed()) {
         return;
@@ -157,6 +207,7 @@ GltfTextureLoader.prototype.load = function () {
       that._image = imageLoader.image;
       that._mipLevels = imageLoader.mipLevels;
       that._state = ResourceLoaderState.PROCESSING;
+      return processPromise;
     })
     .catch(function (error) {
       if (that.isDestroyed()) {
@@ -165,8 +216,10 @@ GltfTextureLoader.prototype.load = function () {
       that.unload();
       that._state = ResourceLoaderState.FAILED;
       const errorMessage = "Failed to load texture";
-      that._promise.reject(that.getError(errorMessage, error));
+      return Promise.reject(that.getError(errorMessage, error));
     });
+
+  return this._promise;
 };
 
 function CreateTextureJob() {
@@ -200,25 +253,6 @@ CreateTextureJob.prototype.execute = function () {
     this.context
   );
 };
-
-function resizeImageToNextPowerOfTwo(image) {
-  const canvas = document.createElement("canvas");
-  canvas.width = CesiumMath.nextPowerOfTwo(image.width);
-  canvas.height = CesiumMath.nextPowerOfTwo(image.height);
-  const canvasContext = canvas.getContext("2d");
-  canvasContext.drawImage(
-    image,
-    0,
-    0,
-    image.width,
-    image.height,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-  return canvas;
-}
 
 function createTexture(gltf, textureInfo, image, mipLevels, context) {
   // internalFormat is only defined for CompressedTextureBuffer
@@ -312,8 +346,6 @@ function createTexture(gltf, textureInfo, image, mipLevels, context) {
   return texture;
 }
 
-const scratchTextureJob = new CreateTextureJob();
-
 /**
  * Processes the resource until it becomes ready.
  *
@@ -325,49 +357,7 @@ GltfTextureLoader.prototype.process = function (frameState) {
   Check.typeOf.object("frameState", frameState);
   //>>includeEnd('debug');
 
-  if (defined(this._texture)) {
-    // Already created texture
-    return;
-  }
-
-  if (!defined(this._image)) {
-    // Not ready to create texture
-    return;
-  }
-
-  let texture;
-
-  if (this._asynchronous) {
-    const textureJob = scratchTextureJob;
-    textureJob.set(
-      this._gltf,
-      this._textureInfo,
-      this._image,
-      this._mipLevels,
-      frameState.context
-    );
-    const jobScheduler = frameState.jobScheduler;
-    if (!jobScheduler.execute(textureJob, JobType.TEXTURE)) {
-      // Job scheduler is full. Try again next frame.
-      return;
-    }
-    texture = textureJob.texture;
-  } else {
-    texture = createTexture(
-      this._gltf,
-      this._textureInfo,
-      this._image,
-      this._mipLevels,
-      frameState.context
-    );
-  }
-
-  // Unload everything except the texture
-  this.unload();
-
-  this._texture = texture;
-  this._state = ResourceLoaderState.READY;
-  this._promise.resolve(this);
+  return this._process(this, frameState);
 };
 
 /**
@@ -389,3 +379,5 @@ GltfTextureLoader.prototype.unload = function () {
   this._texture = undefined;
   this._gltf = undefined;
 };
+
+export default GltfTextureLoader;

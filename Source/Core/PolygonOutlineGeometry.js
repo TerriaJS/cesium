@@ -1,6 +1,6 @@
 import ArcType from "./ArcType.js";
-import arrayFill from "./arrayFill.js";
 import BoundingSphere from "./BoundingSphere.js";
+import Cartesian3 from "./Cartesian3.js";
 import Check from "./Check.js";
 import ComponentDatatype from "./ComponentDatatype.js";
 import defaultValue from "./defaultValue.js";
@@ -405,7 +405,10 @@ function PolygonOutlineGeometry(options) {
    * @type {Number}
    */
   this.packedLength =
-    PolygonGeometryLibrary.computeHierarchyPackedLength(polygonHierarchy) +
+    PolygonGeometryLibrary.computeHierarchyPackedLength(
+      polygonHierarchy,
+      Cartesian3
+    ) +
     Ellipsoid.packedLength +
     8;
 }
@@ -430,7 +433,8 @@ PolygonOutlineGeometry.pack = function (value, array, startingIndex) {
   startingIndex = PolygonGeometryLibrary.packPolygonHierarchy(
     value._polygonHierarchy,
     array,
-    startingIndex
+    startingIndex,
+    Cartesian3
   );
 
   Ellipsoid.pack(value._ellipsoid, array, startingIndex);
@@ -470,7 +474,8 @@ PolygonOutlineGeometry.unpack = function (array, startingIndex, result) {
 
   const polygonHierarchy = PolygonGeometryLibrary.unpackPolygonHierarchy(
     array,
-    startingIndex
+    startingIndex,
+    Cartesian3
   );
   startingIndex = polygonHierarchy.startingIndex;
   delete polygonHierarchy.startingIndex;
@@ -615,13 +620,13 @@ PolygonOutlineGeometry.createGeometry = function (polygonGeometry) {
           geometryInstance.geometry.attributes.position.values.length / 3;
         let offsetAttribute = new Uint8Array(size);
         if (polygonGeometry._offsetAttribute === GeometryOffsetAttribute.TOP) {
-          offsetAttribute = arrayFill(offsetAttribute, 1, 0, size / 2);
+          offsetAttribute = offsetAttribute.fill(1, 0, size / 2);
         } else {
           offsetValue =
             polygonGeometry._offsetAttribute === GeometryOffsetAttribute.NONE
               ? 0
               : 1;
-          offsetAttribute = arrayFill(offsetAttribute, offsetValue);
+          offsetAttribute = offsetAttribute.fill(offsetValue);
         }
 
         geometryInstance.geometry.attributes.applyOffset = new GeometryAttribute(
@@ -653,12 +658,11 @@ PolygonOutlineGeometry.createGeometry = function (polygonGeometry) {
       if (defined(polygonGeometry._offsetAttribute)) {
         const length =
           geometryInstance.geometry.attributes.position.values.length;
-        const applyOffset = new Uint8Array(length / 3);
         offsetValue =
           polygonGeometry._offsetAttribute === GeometryOffsetAttribute.NONE
             ? 0
             : 1;
-        arrayFill(applyOffset, offsetValue);
+        const applyOffset = new Uint8Array(length / 3).fill(offsetValue);
         geometryInstance.geometry.attributes.applyOffset = new GeometryAttribute(
           {
             componentDatatype: ComponentDatatype.UNSIGNED_BYTE,

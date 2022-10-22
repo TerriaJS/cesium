@@ -82,7 +82,7 @@ TerrainCache.prototype.tidy = function () {
  * @see CesiumTerrainProvider
  *
  * @example
- * const geeMetadata = new GoogleEarthEnterpriseMetadata('http://www.earthenterprise.org/3d');
+ * const geeMetadata = new GoogleEarthEnterpriseMetadata('http://www.example.com');
  * const gee = new Cesium.GoogleEarthEnterpriseTerrainProvider({
  *     metadata : geeMetadata
  * });
@@ -143,7 +143,7 @@ function GoogleEarthEnterpriseTerrainProvider(options) {
         const e = new RuntimeError(
           `The server ${metadata.url} doesn't have terrain`
         );
-        metadataError = TileProviderError.handleError(
+        metadataError = TileProviderError.reportError(
           metadataError,
           that,
           that._errorEvent,
@@ -156,12 +156,12 @@ function GoogleEarthEnterpriseTerrainProvider(options) {
         return Promise.reject(e);
       }
 
-      TileProviderError.handleSuccess(metadataError);
+      TileProviderError.reportSuccess(metadataError);
       that._ready = result;
       return result;
     })
     .catch(function (e) {
-      metadataError = TileProviderError.handleError(
+      metadataError = TileProviderError.reportError(
         metadataError,
         that,
         that._errorEvent,
@@ -618,7 +618,7 @@ GoogleEarthEnterpriseTerrainProvider.prototype.getTileDataAvailable = function (
  * @param {Number} x The X coordinate of the tile for which to request geometry.
  * @param {Number} y The Y coordinate of the tile for which to request geometry.
  * @param {Number} level The level of the tile for which to request geometry.
- * @returns {undefined|Promise<void>} Undefined if nothing need to be loaded or a Promise that resolves when all required tiles are loaded
+ * @returns {undefined}
  */
 GoogleEarthEnterpriseTerrainProvider.prototype.loadTileDataAvailability = function (
   x,

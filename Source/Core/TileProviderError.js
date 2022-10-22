@@ -88,10 +88,9 @@ function TileProviderError(
 }
 
 /**
- * Handles an error in an {@link ImageryProvider} or {@link TerrainProvider} by raising an event if it has any listeners, or by
+ * Reports an error in an {@link ImageryProvider} or {@link TerrainProvider} by raising an event if it has any listeners, or by
  * logging the error to the console if the event has no listeners.  This method also tracks the number
- * of times the operation has been retried and will automatically retry if requested to do so by the
- * event listeners.
+ * of times the operation has been retried.
  *
  * @param {TileProviderError} previousError The error instance returned by this function the last
  *        time it was called for this error, or undefined if this is the first time this error has
@@ -105,14 +104,12 @@ function TileProviderError(
  *        error is not specific to a particular tile.
  * @param {Number} level The level-of-detail of the tile that experienced the error, or undefined if the
  *        error is not specific to a particular tile.
- * @param {TileProviderError.RetryFunction} retryFunction The function to call to retry the operation.  If undefined, the
- *        operation will not be retried.
  * @param {Error} [errorDetails] The error or exception that occurred, if any.
  * @returns {TileProviderError} The error instance that was passed to the event listeners and that
  *          should be passed to this function the next time it is called for the same error in order
  *          to track retry counts.
  */
-TileProviderError.handleError = function (
+TileProviderError.reportError = function (
   previousError,
   provider,
   event,
@@ -120,7 +117,6 @@ TileProviderError.handleError = function (
   x,
   y,
   level,
-  retryFunction,
   errorDetails
 ) {
   let error = previousError;
@@ -163,13 +159,13 @@ TileProviderError.handleError = function (
 };
 
 /**
- * Handles success of an operation by resetting the retry count of a previous error, if any.  This way,
+ * Reports success of an operation by resetting the retry count of a previous error, if any.  This way,
  * if the error occurs again in the future, the listeners will be informed that it has not yet been retried.
  *
  * @param {TileProviderError} previousError The previous error, or undefined if this operation has
  *        not previously resulted in an error.
  */
-TileProviderError.handleSuccess = function (previousError) {
+TileProviderError.reportSuccess = function (previousError) {
   if (defined(previousError)) {
     previousError.timesRetried = -1;
   }

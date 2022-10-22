@@ -1,7 +1,6 @@
 import {
   BufferLoader,
   clone,
-  defer,
   GltfJsonLoader,
   Resource,
   ResourceCache,
@@ -12,9 +11,6 @@ describe("Scene/GltfJsonLoader", function () {
   const gltfUri = "https://example.com/model.glb";
   const gltfResource = new Resource({
     url: gltfUri,
-  });
-  const bufferResource = new Resource({
-    url: "https://example.com/external.bin",
   });
 
   const gltf1 = {
@@ -48,6 +44,7 @@ describe("Scene/GltfJsonLoader", function () {
             attributes: {
               POSITION: "accessor",
             },
+            material: "red",
           },
         ],
       },
@@ -63,9 +60,344 @@ describe("Scene/GltfJsonLoader", function () {
         nodes: ["node"],
       },
     },
+    shaders: {
+      Box0FS: {
+        type: 35632,
+        uri: "data:text/plain;base64,",
+      },
+      Box0VS: {
+        type: 35633,
+        uri: "data:text/plain;base64,",
+      },
+    },
+    programs: {
+      program_0: {
+        attributes: ["a_position"],
+        fragmentShader: "Box0FS",
+        vertexShader: "Box0VS",
+      },
+    },
+    materials: {
+      red: {
+        technique: "technique0",
+        values: {
+          diffuse: [0.8, 0, 0, 1],
+          shininess: 256,
+          specular: [0.2, 0.2, 0.2, 1],
+        },
+      },
+    },
+    techniques: {
+      technique0: {
+        attributes: {
+          a_position: "position",
+        },
+        parameters: {
+          diffuse: {
+            type: 35666,
+          },
+          modelViewMatrix: {
+            semantic: "MODELVIEW",
+            type: 35676,
+          },
+          position: {
+            semantic: "POSITION",
+            type: 35665,
+          },
+          projectionMatrix: {
+            semantic: "PROJECTION",
+            type: 35676,
+          },
+          shininess: {
+            type: 5126,
+          },
+          specular: {
+            type: 35666,
+          },
+        },
+        program: "program_0",
+        states: {
+          enable: [2929, 2884],
+        },
+        uniforms: {
+          u_diffuse: "diffuse",
+          u_modelViewMatrix: "modelViewMatrix",
+          u_projectionMatrix: "projectionMatrix",
+          u_shininess: "shininess",
+          u_specular: "specular",
+        },
+      },
+    },
   };
 
-  const gltf1Updated = {
+  const gltf1MaterialsCommon = {
+    asset: {
+      version: "1.0",
+    },
+    buffers: {
+      buffer: {
+        uri: "external.bin",
+      },
+    },
+    bufferViews: {
+      bufferView: {
+        buffer: "buffer",
+        byteOffset: 0,
+      },
+    },
+    accessors: {
+      accessor: {
+        bufferView: "bufferView",
+        byteOffset: 0,
+        componentType: 5126,
+        type: "VEC3",
+        count: 1,
+      },
+    },
+    materials: {
+      red: {
+        extensions: {
+          KHR_materials_common: {
+            doubleSided: false,
+            jointCount: 0,
+            technique: "PHONG",
+            transparent: false,
+            values: {
+              diffuse: [0.8, 0, 0, 1],
+              shininess: 256,
+              specular: [0.2, 0.2, 0.2, 1],
+            },
+          },
+        },
+      },
+    },
+    meshes: {
+      mesh: {
+        primitives: [
+          {
+            attributes: {
+              POSITION: "accessor",
+            },
+            material: "red",
+          },
+        ],
+      },
+    },
+    nodes: {
+      node: {
+        meshes: ["mesh"],
+      },
+    },
+    scene: "scene",
+    scenes: {
+      scene: {
+        nodes: ["node"],
+      },
+    },
+    extensionsUsed: ["KHR_materials_common"],
+  };
+
+  const gltf2 = {
+    asset: {
+      version: "2.0",
+    },
+    buffers: [
+      {
+        name: "buffer",
+        uri: "external.bin",
+        byteLength: 12,
+      },
+    ],
+    bufferViews: [
+      {
+        name: "bufferView",
+        buffer: 0,
+        byteOffset: 0,
+        byteLength: 12,
+      },
+    ],
+    accessors: [
+      {
+        name: "accessor",
+        bufferView: 0,
+        byteOffset: 0,
+        componentType: 5126,
+        type: "VEC3",
+        count: 1,
+        min: [0, 0, 0],
+        max: [0, 0, 0],
+      },
+    ],
+    materials: [
+      {
+        name: "red",
+        pbrMetallicRoughness: {
+          roughnessFactor: 1,
+          metallicFactor: 0,
+          baseColorFactor: [0.6038273388553378, 0, 0, 1],
+        },
+      },
+    ],
+    meshes: [
+      {
+        name: "mesh",
+        primitives: [
+          {
+            attributes: {
+              POSITION: 0,
+            },
+            material: 0,
+          },
+        ],
+      },
+    ],
+    nodes: [
+      {
+        name: "node",
+        mesh: 0,
+        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      },
+    ],
+    scene: 0,
+    scenes: [
+      {
+        name: "scene",
+        nodes: [0],
+      },
+    ],
+  };
+
+  const gltf2TechniquesWebgl = {
+    asset: {
+      version: "2.0",
+    },
+    buffers: [
+      {
+        name: "buffer",
+        uri: "external.bin",
+        byteLength: 12,
+      },
+    ],
+    bufferViews: [
+      {
+        name: "bufferView",
+        buffer: 0,
+        byteOffset: 0,
+        byteLength: 12,
+      },
+    ],
+    accessors: [
+      {
+        name: "accessor",
+        bufferView: 0,
+        byteOffset: 0,
+        componentType: 5126,
+        type: "VEC3",
+        count: 1,
+        min: [0, 0, 0],
+        max: [0, 0, 0],
+      },
+    ],
+    meshes: [
+      {
+        name: "mesh",
+        primitives: [
+          {
+            attributes: {
+              POSITION: 0,
+            },
+            material: 0,
+          },
+        ],
+      },
+    ],
+    nodes: [
+      {
+        name: "node",
+        mesh: 0,
+        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      },
+    ],
+    scene: 0,
+    scenes: [
+      {
+        name: "scene",
+        nodes: [0],
+      },
+    ],
+    materials: [
+      {
+        name: "red",
+        extensions: {
+          KHR_techniques_webgl: {
+            technique: 0,
+            values: {
+              u_diffuse: [0.8, 0, 0, 1],
+              u_shininess: 256,
+              u_specular: [0.2, 0.2, 0.2, 1],
+            },
+          },
+        },
+      },
+    ],
+    extensionsUsed: ["KHR_techniques_webgl"],
+    extensionsRequired: ["KHR_techniques_webgl"],
+    extensions: {
+      KHR_techniques_webgl: {
+        programs: [
+          {
+            name: "program_0",
+            fragmentShader: 0,
+            vertexShader: 1,
+          },
+        ],
+        shaders: [
+          {
+            type: 35632,
+            name: "Box0FS",
+            bufferView: 2,
+          },
+          {
+            type: 35633,
+            name: "Box0VS",
+            bufferView: 3,
+          },
+        ],
+        techniques: [
+          {
+            name: "technique0",
+            program: 0,
+            attributes: {
+              a_position: {
+                semantic: "POSITION",
+              },
+            },
+            uniforms: {
+              u_diffuse: {
+                type: 35666,
+              },
+              u_modelViewMatrix: {
+                type: 35676,
+                semantic: "MODELVIEW",
+              },
+              u_projectionMatrix: {
+                type: 35676,
+                semantic: "PROJECTION",
+              },
+              u_shininess: {
+                type: 5126,
+              },
+              u_specular: {
+                type: 35666,
+              },
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  const gltf2Updated = {
     asset: {
       version: "2.0",
     },
@@ -129,126 +461,12 @@ describe("Scene/GltfJsonLoader", function () {
     ],
     materials: [
       {
-        name: "default",
-        emissiveFactor: [0, 0, 0],
-        alphaMode: "OPAQUE",
-        doubleSided: false,
-      },
-    ],
-  };
-
-  const gltf2 = {
-    asset: {
-      version: "2.0",
-    },
-    buffers: [
-      {
-        uri: "external.bin",
-        byteLength: 12,
-      },
-    ],
-    bufferViews: [
-      {
-        buffer: 0,
-        byteOffset: 0,
-        byteLength: 12,
-      },
-    ],
-    accessors: [
-      {
-        bufferView: 0,
-        byteOffset: 0,
-        componentType: 5126,
-        type: "VEC3",
-        count: 1,
-        min: [0, 0, 0],
-        max: [0, 0, 0],
-      },
-    ],
-    meshes: [
-      {
-        primitives: [
-          {
-            attributes: {
-              POSITION: 0,
-            },
-          },
-        ],
-      },
-    ],
-    nodes: [
-      {
-        mesh: 0,
-        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-      },
-    ],
-    scene: 0,
-    scenes: [
-      {
-        nodes: [0],
-      },
-    ],
-  };
-
-  const gltf2Updated = {
-    asset: {
-      version: "2.0",
-    },
-    buffers: [
-      {
-        uri: "external.bin",
-        byteLength: 12,
-      },
-    ],
-    bufferViews: [
-      {
-        buffer: 0,
-        byteOffset: 0,
-        byteLength: 12,
-        byteStride: 12,
-        target: 34962,
-      },
-    ],
-    accessors: [
-      {
-        bufferView: 0,
-        byteOffset: 0,
-        componentType: 5126,
-        type: "VEC3",
-        count: 1,
-        min: [0, 0, 0],
-        max: [0, 0, 0],
-        normalized: false,
-      },
-    ],
-    meshes: [
-      {
-        primitives: [
-          {
-            attributes: {
-              POSITION: 0,
-            },
-            mode: 4,
-            material: 0,
-          },
-        ],
-      },
-    ],
-    nodes: [
-      {
-        mesh: 0,
-        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-      },
-    ],
-    scene: 0,
-    scenes: [
-      {
-        nodes: [0],
-      },
-    ],
-    materials: [
-      {
-        name: "default",
+        name: "red",
+        pbrMetallicRoughness: {
+          roughnessFactor: 1,
+          metallicFactor: 0,
+          baseColorFactor: [0.6038273388553378, 0, 0, 1],
+        },
         emissiveFactor: [0, 0, 0],
         alphaMode: "OPAQUE",
         doubleSided: false,
@@ -466,7 +684,32 @@ describe("Scene/GltfJsonLoader", function () {
 
     return gltfJsonLoader.promise.then(function (gltfJsonLoader) {
       const gltf = gltfJsonLoader.gltf;
-      expect(gltf).toEqual(gltf1Updated);
+      expect(gltf).toEqual(gltf2Updated);
+    });
+  });
+
+  it("loads glTF 1.0 with KHR_materials_common", function () {
+    const arrayBuffer = generateJsonBuffer(gltf1MaterialsCommon).buffer;
+
+    spyOn(GltfJsonLoader.prototype, "_fetchGltf").and.returnValue(
+      Promise.resolve(arrayBuffer)
+    );
+
+    spyOn(Resource.prototype, "fetchArrayBuffer").and.returnValue(
+      Promise.resolve(new Float32Array([0.0, 0.0, 0.0]).buffer)
+    );
+
+    const gltfJsonLoader = new GltfJsonLoader({
+      resourceCache: ResourceCache,
+      gltfResource: gltfResource,
+      baseResource: gltfResource,
+    });
+
+    gltfJsonLoader.load();
+
+    return gltfJsonLoader.promise.then(function (gltfJsonLoader) {
+      const gltf = gltfJsonLoader.gltf;
+      expect(gltf).toEqual(gltf2Updated);
     });
   });
 
@@ -482,7 +725,7 @@ describe("Scene/GltfJsonLoader", function () {
     gltf1Binary.extensionsUsed = ["KHR_binary_glTF"];
     gltf1Binary.bufferViews.bufferView.buffer = "binary_glTF";
 
-    const gltf1BinaryUpdated = clone(gltf1Updated, true);
+    const gltf1BinaryUpdated = clone(gltf2Updated, true);
     gltf1BinaryUpdated.buffers[0].name = "binary_glTF";
     delete gltf1BinaryUpdated.buffers[0].uri;
 
@@ -512,7 +755,7 @@ describe("Scene/GltfJsonLoader", function () {
       uri: "data:application/octet-stream;base64,AAAAAAAAAAAAAAAA",
     };
 
-    const gltf1DataUriUpdated = clone(gltf1Updated, true);
+    const gltf1DataUriUpdated = clone(gltf2Updated, true);
     delete gltf1DataUriUpdated.buffers[0].uri;
 
     const arrayBuffer = generateJsonBuffer(gltf1DataUri).buffer;
@@ -537,6 +780,31 @@ describe("Scene/GltfJsonLoader", function () {
 
   it("loads glTF 2.0", function () {
     const arrayBuffer = generateJsonBuffer(gltf2).buffer;
+
+    spyOn(GltfJsonLoader.prototype, "_fetchGltf").and.returnValue(
+      Promise.resolve(arrayBuffer)
+    );
+
+    spyOn(Resource.prototype, "fetchArrayBuffer").and.returnValue(
+      Promise.resolve(new Float32Array([0.0, 0.0, 0.0]).buffer)
+    );
+
+    const gltfJsonLoader = new GltfJsonLoader({
+      resourceCache: ResourceCache,
+      gltfResource: gltfResource,
+      baseResource: gltfResource,
+    });
+
+    gltfJsonLoader.load();
+
+    return gltfJsonLoader.promise.then(function (gltfJsonLoader) {
+      const gltf = gltfJsonLoader.gltf;
+      expect(gltf).toEqual(gltf2Updated);
+    });
+  });
+
+  it("loads glTF 2.0 with KHR_techniques_webgl", function () {
+    const arrayBuffer = generateJsonBuffer(gltf2TechniquesWebgl).buffer;
 
     spyOn(GltfJsonLoader.prototype, "_fetchGltf").and.returnValue(
       Promise.resolve(arrayBuffer)
@@ -698,7 +966,7 @@ describe("Scene/GltfJsonLoader", function () {
 
   function resolvesGltfAfterDestroy(rejectPromise) {
     const arrayBuffer = generateJsonBuffer(gltf2).buffer;
-    let promise = new Promise(function (resolve, reject) {
+    const promise = new Promise(function (resolve, reject) {
       if (rejectPromise) {
         reject(new Error());
         return;
@@ -706,11 +974,6 @@ describe("Scene/GltfJsonLoader", function () {
 
       resolve(arrayBuffer);
     });
-    if (rejectPromise) {
-      promise = promise.catch(function (e) {
-        // swallow that error we just threw
-      });
-    }
 
     spyOn(GltfJsonLoader.prototype, "_fetchGltf").and.returnValue(promise);
 
@@ -723,9 +986,8 @@ describe("Scene/GltfJsonLoader", function () {
     expect(gltfJsonLoader.gltf).not.toBeDefined();
 
     gltfJsonLoader.load();
-    return promise.then(function () {
-      gltfJsonLoader.destroy();
-
+    gltfJsonLoader.destroy();
+    return gltfJsonLoader.promise.then(function () {
       expect(gltfJsonLoader.gltf).not.toBeDefined();
       expect(gltfJsonLoader.isDestroyed()).toBe(true);
     });
@@ -739,16 +1001,21 @@ describe("Scene/GltfJsonLoader", function () {
     return resolvesGltfAfterDestroy(true);
   });
 
-  function resolvesProcessedGltfAfterDestroy(reject) {
+  function resolvesProcessedGltfAfterDestroy(rejectPromise) {
     spyOn(GltfJsonLoader.prototype, "_fetchGltf").and.returnValue(
       Promise.resolve(generateJsonBuffer(gltf2).buffer)
     );
 
     const buffer = new Float32Array([0.0, 0.0, 0.0]).buffer;
-    const deferredPromise = defer();
-    spyOn(Resource.prototype, "fetchArrayBuffer").and.returnValue(
-      deferredPromise.promise
-    );
+    spyOn(Resource.prototype, "fetchArrayBuffer").and.callFake(function () {
+      return new Promise(function (resolve, reject) {
+        if (rejectPromise) {
+          reject(new Error());
+        } else {
+          resolve(buffer);
+        }
+      });
+    });
 
     const gltfJsonLoader = new GltfJsonLoader({
       resourceCache: ResourceCache,
@@ -758,47 +1025,24 @@ describe("Scene/GltfJsonLoader", function () {
 
     expect(gltfJsonLoader.gltf).not.toBeDefined();
 
-    gltfJsonLoader.load();
+    const promise = gltfJsonLoader.load();
     gltfJsonLoader.destroy();
-
-    deferredPromise.resolve(buffer);
-
-    expect(gltfJsonLoader.gltf).not.toBeDefined();
-    expect(gltfJsonLoader.isDestroyed()).toBe(true);
+    return promise.finally(function () {
+      expect(gltfJsonLoader.gltf).not.toBeDefined();
+      expect(gltfJsonLoader.isDestroyed()).toBe(true);
+    });
   }
 
   it("handles resolving processed glTF after destroy", function () {
-    resolvesProcessedGltfAfterDestroy(false);
+    return resolvesProcessedGltfAfterDestroy(false);
   });
 
   it("handles rejecting processed glTF after destroy", function () {
-    resolvesProcessedGltfAfterDestroy(true);
+    return resolvesProcessedGltfAfterDestroy(true);
   });
 
   function resolvesTypedArrayAfterDestroy(rejectPromise) {
     const typedArray = generateJsonBuffer(gltf1);
-
-    const buffer = new Float32Array([0.0, 0.0, 0.0]).buffer;
-    let promise = new Promise(function (resolve, reject) {
-      if (rejectPromise) {
-        reject(new Error());
-        return;
-      }
-
-      resolve(buffer);
-    });
-    if (rejectPromise) {
-      promise = promise.catch(function (e) {
-        // swallow that error we just threw
-      });
-    }
-    spyOn(Resource.prototype, "fetchArrayBuffer").and.returnValue(promise);
-
-    // Load a copy of the buffer into the cache so that the buffer loader
-    // promise resolves even if the glTF loader is destroyed
-    const bufferLoaderCopy = ResourceCache.loadExternalBuffer({
-      resource: bufferResource,
-    });
 
     const gltfJsonLoader = new GltfJsonLoader({
       resourceCache: ResourceCache,
@@ -807,16 +1051,24 @@ describe("Scene/GltfJsonLoader", function () {
       typedArray: typedArray,
     });
 
+    const buffer = new Float32Array([0.0, 0.0, 0.0]).buffer;
+    spyOn(Resource.prototype, "fetchArrayBuffer").and.callFake(function () {
+      return new Promise(function (resolve, reject) {
+        if (rejectPromise) {
+          reject(new Error());
+          return;
+        }
+
+        resolve(buffer);
+      });
+    });
     expect(gltfJsonLoader.gltf).not.toBeDefined();
 
     gltfJsonLoader.load();
-    return promise.then(function () {
-      gltfJsonLoader.destroy();
-
+    gltfJsonLoader.destroy();
+    return gltfJsonLoader.promise.then(function () {
       expect(gltfJsonLoader.gltf).not.toBeDefined();
       expect(gltfJsonLoader.isDestroyed()).toBe(true);
-
-      ResourceCache.unload(bufferLoaderCopy);
     });
   }
 

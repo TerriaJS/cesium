@@ -1,7 +1,5 @@
-import arrayFill from "../Core/arrayFill.js";
 import Check from "../Core/Check.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import DeveloperError from "../Core/DeveloperError.js";
 import Buffer from "../Renderer/Buffer.js";
@@ -11,8 +9,6 @@ import JobType from "./JobType.js";
 import ModelComponents from "./ModelComponents.js";
 import ResourceLoader from "./ResourceLoader.js";
 import ResourceLoaderState from "./ResourceLoaderState.js";
-import AttributeCompression from "../Core/AttributeCompression.js";
-import ComponentDatatype from "../Core/ComponentDatatype.js";
 
 /**
  * Loads a vertex buffer from a glTF buffer view.
@@ -35,8 +31,8 @@ import ComponentDatatype from "../Core/ComponentDatatype.js";
  * @param {Number} [options.accessorId] The accessor id.
  * @param {String} [options.cacheKey] The cache key of the resource.
  * @param {Boolean} [options.asynchronous=true] Determines if WebGL resource creation will be spread out over several frames or block until all WebGL resources are created.
- * @param {Boolean} [options.dequantize=false] Determines whether or not the vertex buffer will be dequantized on the CPU.
- * @param {Boolean} [options.loadAsTypedArray=false] Load vertex buffer as a typed array instead of a GPU vertex buffer.
+ * @param {Boolean} [options.loadBuffer=false] Load vertex buffer as a GPU vertex buffer.
+ * @param {Boolean} [options.loadTypedArray=false] Load vertex buffer as a typed array.
  *
  * @exception {DeveloperError} One of options.bufferViewId and options.draco must be defined.
  * @exception {DeveloperError} When options.draco is defined options.attributeSemantic must also be defined.
@@ -44,7 +40,7 @@ import ComponentDatatype from "../Core/ComponentDatatype.js";
  *
  * @private
  */
-export default function GltfVertexBufferLoader(options) {
+function GltfVertexBufferLoader(options) {
   options = defaultValue(options, defaultValue.EMPTY_OBJECT);
   const resourceCache = options.resourceCache;
   const gltf = options.gltf;
@@ -56,14 +52,19 @@ export default function GltfVertexBufferLoader(options) {
   const accessorId = options.accessorId;
   const cacheKey = options.cacheKey;
   const asynchronous = defaultValue(options.asynchronous, true);
-  const dequantize = defaultValue(options.dequantize, false);
-  const loadAsTypedArray = defaultValue(options.loadAsTypedArray, false);
+  const loadBuffer = defaultValue(options.loadBuffer, false);
+  const loadTypedArray = defaultValue(options.loadTypedArray, false);
 
   //>>includeStart('debug', pragmas.debug);
   Check.typeOf.func("options.resourceCache", resourceCache);
   Check.typeOf.object("options.gltf", gltf);
   Check.typeOf.object("options.gltfResource", gltfResource);
   Check.typeOf.object("options.baseResource", baseResource);
+  if (!loadBuffer && !loadTypedArray) {
+    throw new DeveloperError(
+      "At least one of loadBuffer and loadTypedArray must be true."
+    );
+  }
 
   const hasBufferViewId = defined(bufferViewId);
   const hasDraco = defined(draco);
@@ -105,15 +106,16 @@ export default function GltfVertexBufferLoader(options) {
   this._accessorId = accessorId;
   this._cacheKey = cacheKey;
   this._asynchronous = asynchronous;
-  this._dequantize = dequantize;
-  this._loadAsTypedArray = loadAsTypedArray;
+  this._loadBuffer = loadBuffer;
+  this._loadTypedArray = loadTypedArray;
   this._bufferViewLoader = undefined;
   this._dracoLoader = undefined;
   this._quantization = undefined;
   this._typedArray = undefined;
   this._buffer = undefined;
   this._state = ResourceLoaderState.UNLOADED;
-  this._promise = defer();
+  this._promise = undefined;
+  this._process = function (loader, frameState) {};
 }
 
 if (defined(Object.create)) {
@@ -123,17 +125,17 @@ if (defined(Object.create)) {
 
 Object.defineProperties(GltfVertexBufferLoader.prototype, {
   /**
-   * A promise that resolves to the resource when the resource is ready.
+   * A promise that resolves to the resource when the resource is ready, or undefined if the resource hasn't started loading.
    *
    * @memberof GltfVertexBufferLoader.prototype
    *
-   * @type {Promise.<GltfVertexBufferLoader>}
+   * @type {Promise.<GltfVertexBufferLoader>|undefined}
    * @readonly
    * @private
    */
   promise: {
     get: function () {
-      return this._promise.promise;
+      return this._promise;
     },
   },
   /**
@@ -196,14 +198,81 @@ Object.defineProperties(GltfVertexBufferLoader.prototype, {
 
 /**
  * Loads the resource.
+ * @returns {Promise.<GltfVertexBufferLoader>} A promise which resolves to the loader when the resource loading is completed.
  * @private
  */
 GltfVertexBufferLoader.prototype.load = function () {
+  let promise;
+
   if (defined(this._draco)) {
-    loadFromDraco(this);
+    promise = loadFromDraco(this);
   } else {
-    loadFromBufferView(this);
+    promise = loadFromBufferView(this);
   }
+
+  const that = this;
+  const scratchVertexBufferJob = new CreateVertexBufferJob();
+  const processPromise = new Promise(function (resolve) {
+    that._process = function (loader, frameState) {
+      if (loader._state === ResourceLoaderState.READY) {
+        return;
+      }
+
+      const typedArray = loader._typedArray;
+
+      if (defined(loader._dracoLoader)) {
+        loader._dracoLoader.process(frameState);
+      }
+
+      if (defined(loader._bufferViewLoader)) {
+        loader._bufferViewLoader.process(frameState);
+      }
+
+      if (!defined(typedArray)) {
+        // Buffer view hasn't been loaded yet
+        return;
+      }
+
+      let buffer;
+      if (loader._loadBuffer && loader._asynchronous) {
+        const vertexBufferJob = scratchVertexBufferJob;
+        vertexBufferJob.set(typedArray, frameState.context);
+        const jobScheduler = frameState.jobScheduler;
+        if (!jobScheduler.execute(vertexBufferJob, JobType.BUFFER)) {
+          // Job scheduler is full. Try again next frame.
+          return;
+        }
+        buffer = vertexBufferJob.buffer;
+      } else if (loader._loadBuffer) {
+        buffer = createVertexBuffer(typedArray, frameState.context);
+      }
+
+      // Unload everything except the vertex buffer
+      loader.unload();
+
+      loader._buffer = buffer;
+      loader._typedArray = loader._loadTypedArray ? typedArray : undefined;
+      loader._state = ResourceLoaderState.READY;
+      resolve(loader);
+    };
+  });
+
+  this._promise = promise
+    .then(function () {
+      if (that.isDestroyed()) {
+        return;
+      }
+
+      return processPromise;
+    })
+    .catch(function (error) {
+      if (that.isDestroyed()) {
+        return;
+      }
+
+      return handleError(that, error);
+    });
+  return this._promise;
 };
 
 function getQuantizationInformation(
@@ -238,10 +307,9 @@ function getQuantizationInformation(
         dracoQuantization.minValues
       );
       quantization.normalizationRange = MathType.unpack(
-        arrayFill(new Array(componentCount), normalizationRange)
+        new Array(componentCount).fill(normalizationRange)
       );
-      const packedDimensions = arrayFill(
-        new Array(componentCount),
+      const packedDimensions = new Array(componentCount).fill(
         dracoQuantization.range
       );
       quantization.quantizedVolumeDimensions = MathType.unpack(
@@ -271,39 +339,37 @@ function loadFromDraco(vertexBufferLoader) {
   vertexBufferLoader._dracoLoader = dracoLoader;
   vertexBufferLoader._state = ResourceLoaderState.LOADING;
 
-  dracoLoader.promise
-    .then(function () {
-      if (vertexBufferLoader.isDestroyed()) {
-        return;
-      }
-      // Get the typed array and quantization information
-      const decodedVertexAttributes = dracoLoader.decodedData.vertexAttributes;
-      const attributeSemantic = vertexBufferLoader._attributeSemantic;
-      const dracoAttribute = decodedVertexAttributes[attributeSemantic];
-      const accessorId = vertexBufferLoader._accessorId;
-      const accessor = vertexBufferLoader._gltf.accessors[accessorId];
-      const type = accessor.type;
-      const typedArray = dracoAttribute.array;
-      const dracoQuantization = dracoAttribute.data.quantization;
-      if (defined(dracoQuantization)) {
-        vertexBufferLoader._quantization = getQuantizationInformation(
-          dracoQuantization,
-          dracoAttribute.data.componentDatatype,
-          dracoAttribute.data.componentsPerAttribute,
-          type
-        );
-      }
+  return dracoLoader.promise.then(function () {
+    if (vertexBufferLoader.isDestroyed()) {
+      return;
+    }
+    // Get the typed array and quantization information
+    const decodedVertexAttributes = dracoLoader.decodedData.vertexAttributes;
+    const attributeSemantic = vertexBufferLoader._attributeSemantic;
+    const dracoAttribute = decodedVertexAttributes[attributeSemantic];
+    const accessorId = vertexBufferLoader._accessorId;
+    const accessor = vertexBufferLoader._gltf.accessors[accessorId];
+    const type = accessor.type;
+    const typedArray = dracoAttribute.array;
+    const dracoQuantization = dracoAttribute.data.quantization;
+    if (defined(dracoQuantization)) {
+      vertexBufferLoader._quantization = getQuantizationInformation(
+        dracoQuantization,
+        dracoAttribute.data.componentDatatype,
+        dracoAttribute.data.componentsPerAttribute,
+        type
+      );
+    }
 
-      // Now wait for process() to run to finish loading
-      vertexBufferLoader._typedArray = typedArray;
-      vertexBufferLoader._state = ResourceLoaderState.PROCESSING;
-    })
-    .catch(function (error) {
-      if (vertexBufferLoader.isDestroyed()) {
-        return;
-      }
-      handleError(vertexBufferLoader, error);
-    });
+    // Now wait for process() to run to finish loading
+    vertexBufferLoader._typedArray = new Uint8Array(
+      typedArray.buffer,
+      typedArray.byteOffset,
+      typedArray.byteLength
+    );
+    vertexBufferLoader._state = ResourceLoaderState.PROCESSING;
+    return vertexBufferLoader;
+  });
 }
 
 function loadFromBufferView(vertexBufferLoader) {
@@ -317,21 +383,15 @@ function loadFromBufferView(vertexBufferLoader) {
   vertexBufferLoader._state = ResourceLoaderState.LOADING;
   vertexBufferLoader._bufferViewLoader = bufferViewLoader;
 
-  bufferViewLoader.promise
-    .then(function () {
-      if (vertexBufferLoader.isDestroyed()) {
-        return;
-      }
-      // Now wait for process() to run to finish loading
-      vertexBufferLoader._typedArray = bufferViewLoader.typedArray;
-      vertexBufferLoader._state = ResourceLoaderState.PROCESSING;
-    })
-    .catch(function (error) {
-      if (vertexBufferLoader.isDestroyed()) {
-        return;
-      }
-      handleError(vertexBufferLoader, error);
-    });
+  return bufferViewLoader.promise.then(function () {
+    if (vertexBufferLoader.isDestroyed()) {
+      return;
+    }
+    // Now wait for process() to run to finish loading
+    vertexBufferLoader._typedArray = bufferViewLoader.typedArray;
+    vertexBufferLoader._state = ResourceLoaderState.PROCESSING;
+    return vertexBufferLoader;
+  });
 }
 
 function handleError(vertexBufferLoader, error) {
@@ -339,63 +399,25 @@ function handleError(vertexBufferLoader, error) {
   vertexBufferLoader._state = ResourceLoaderState.FAILED;
   const errorMessage = "Failed to load vertex buffer";
   error = vertexBufferLoader.getError(errorMessage, error);
-  vertexBufferLoader._promise.reject(error);
+  return Promise.reject(error);
 }
 
 function CreateVertexBufferJob() {
   this.typedArray = undefined;
-  this.dequantize = undefined;
-  this.componentType = undefined;
-  this.type = undefined;
-  this.count = undefined;
   this.context = undefined;
   this.buffer = undefined;
 }
 
-CreateVertexBufferJob.prototype.set = function (
-  typedArray,
-  dequantize,
-  componentType,
-  type,
-  count,
-  context
-) {
+CreateVertexBufferJob.prototype.set = function (typedArray, context) {
   this.typedArray = typedArray;
-  this.dequantize = dequantize;
-  this.componentType = componentType;
-  this.type = type;
-  this.count = count;
   this.context = context;
 };
 
 CreateVertexBufferJob.prototype.execute = function () {
-  this.buffer = createVertexBuffer(
-    this.typedArray,
-    this.dequantize,
-    this.componentType,
-    this.type,
-    this.count,
-    this.context
-  );
+  this.buffer = createVertexBuffer(this.typedArray, this.context);
 };
 
-function createVertexBuffer(
-  typedArray,
-  dequantize,
-  componentType,
-  type,
-  count,
-  context
-) {
-  if (dequantize && componentType !== ComponentDatatype.FLOAT) {
-    typedArray = AttributeCompression.dequantize(
-      typedArray,
-      componentType,
-      type,
-      count
-    );
-  }
-
+function createVertexBuffer(typedArray, context) {
   const buffer = Buffer.createVertexBuffer({
     typedArray: typedArray,
     context: context,
@@ -404,8 +426,6 @@ function createVertexBuffer(
   buffer.vertexArrayDestroyable = false;
   return buffer;
 }
-
-const scratchVertexBufferJob = new CreateVertexBufferJob();
 
 /**
  * Processes the resource until it becomes ready.
@@ -418,74 +438,7 @@ GltfVertexBufferLoader.prototype.process = function (frameState) {
   Check.typeOf.object("frameState", frameState);
   //>>includeEnd('debug');
 
-  if (this._state === ResourceLoaderState.READY) {
-    return;
-  }
-
-  const typedArray = this._typedArray;
-  const dequantize = this._dequantize;
-
-  if (defined(this._dracoLoader)) {
-    this._dracoLoader.process(frameState);
-  }
-
-  if (defined(this._bufferViewLoader)) {
-    this._bufferViewLoader.process(frameState);
-  }
-
-  if (!defined(typedArray)) {
-    // Buffer view hasn't been loaded yet
-    return;
-  }
-
-  if (this._loadAsTypedArray) {
-    // Unload everything except the typed array
-    this.unload();
-
-    this._typedArray = typedArray;
-    this._state = ResourceLoaderState.READY;
-    this._promise.resolve(this);
-
-    return;
-  }
-
-  const accessor = this._gltf.accessors[this._accessorId];
-
-  let buffer;
-
-  if (this._asynchronous) {
-    const vertexBufferJob = scratchVertexBufferJob;
-    vertexBufferJob.set(
-      typedArray,
-      dequantize,
-      accessor.componentType,
-      accessor.type,
-      accessor.count,
-      frameState.context
-    );
-    const jobScheduler = frameState.jobScheduler;
-    if (!jobScheduler.execute(vertexBufferJob, JobType.BUFFER)) {
-      // Job scheduler is full. Try again next frame.
-      return;
-    }
-    buffer = vertexBufferJob.buffer;
-  } else {
-    buffer = createVertexBuffer(
-      typedArray,
-      dequantize,
-      accessor.componentType,
-      accessor.type,
-      accessor.count,
-      frameState.context
-    );
-  }
-
-  // Unload everything except the vertex buffer
-  this.unload();
-
-  this._buffer = buffer;
-  this._state = ResourceLoaderState.READY;
-  this._promise.resolve(this);
+  return this._process(this, frameState);
 };
 
 /**
@@ -513,3 +466,5 @@ GltfVertexBufferLoader.prototype.unload = function () {
   this._buffer = undefined;
   this._gltf = undefined;
 };
+
+export default GltfVertexBufferLoader;

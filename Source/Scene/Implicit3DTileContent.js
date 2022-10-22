@@ -3,7 +3,6 @@ import Check from "../Core/Check.js";
 import clone from "../Core/clone.js";
 import combine from "../Core/combine.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import destroyObject from "../Core/destroyObject.js";
 import DeveloperError from "../Core/DeveloperError.js";
@@ -43,7 +42,7 @@ import parseBoundingVolumeSemantics from "./parseBoundingVolumeSemantics.js";
  * @private
  * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
  */
-export default function Implicit3DTileContent(
+function Implicit3DTileContent(
   tileset,
   tile,
   resource,
@@ -68,7 +67,6 @@ export default function Implicit3DTileContent(
   this._tileset = tileset;
   this._tile = tile;
   this._resource = resource;
-  this._readyPromise = defer();
 
   this._metadata = undefined;
 
@@ -83,7 +81,7 @@ export default function Implicit3DTileContent(
   );
   this._url = subtreeResource.getUrlComponent(true);
 
-  initialize(this, json, arrayBuffer, byteOffset);
+  this._readyPromise = initialize(this, json, arrayBuffer, byteOffset);
 }
 
 Object.defineProperties(Implicit3DTileContent.prototype, {
@@ -131,7 +129,7 @@ Object.defineProperties(Implicit3DTileContent.prototype, {
 
   readyPromise: {
     get: function () {
-      return this._readyPromise.promise;
+      return this._readyPromise;
     },
   },
 
@@ -212,14 +210,10 @@ function initialize(content, json, arrayBuffer, byteOffset) {
   );
 
   content._implicitSubtree = subtree;
-  subtree.readyPromise
-    .then(function () {
-      expandSubtree(content, subtree);
-      content._readyPromise.resolve();
-    })
-    .catch(function (error) {
-      content._readyPromise.reject(error);
-    });
+  return subtree.readyPromise.then(function () {
+    expandSubtree(content, subtree);
+    return content;
+  });
 }
 
 /**
@@ -244,8 +238,11 @@ function expandSubtree(content, subtree) {
     childIndex
   );
 
+  const statistics = content._tileset.statistics;
+
   // Link the new subtree to the existing placeholder tile.
   placeholderTile.children.push(results.rootTile);
+  statistics.numberOfTilesTotal++;
 
   // for each child subtree, make new placeholder tiles
   const childSubtrees = listChildSubtrees(content, subtree, results.bottomRow);
@@ -258,6 +255,7 @@ function expandSubtree(content, subtree) {
       subtreeLocator.childIndex
     );
     leafTile.children.push(implicitChildTile);
+    statistics.numberOfTilesTotal++;
   }
 }
 
@@ -335,6 +333,8 @@ function transcodeSubtreeTiles(content, subtree, placeholderTile, childIndex) {
     rootParentIsPlaceholder
   );
 
+  const statistics = content._tileset.statistics;
+
   // Sliding window over the levels of the tree.
   // Each row is branchingFactor * length of previous row
   // Tiles within a row are ordered by Morton index.
@@ -369,6 +369,7 @@ function transcodeSubtreeTiles(content, subtree, placeholderTile, childIndex) {
         childBitIndex
       );
       parentTile.children.push(childTile);
+      statistics.numberOfTilesTotal++;
       currentRow.push(childTile);
     }
 
@@ -1149,3 +1150,5 @@ Implicit3DTileContent.prototype.destroy = function () {
 Implicit3DTileContent._deriveBoundingBox = deriveBoundingBox;
 Implicit3DTileContent._deriveBoundingRegion = deriveBoundingRegion;
 Implicit3DTileContent._deriveBoundingVolumeS2 = deriveBoundingVolumeS2;
+
+export default Implicit3DTileContent;

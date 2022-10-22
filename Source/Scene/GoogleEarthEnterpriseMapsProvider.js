@@ -2,7 +2,6 @@ import buildModuleUrl from "../Core/buildModuleUrl.js";
 import Check from "../Core/Check.js";
 import Credit from "../Core/Credit.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import DeveloperError from "../Core/DeveloperError.js";
 import Event from "../Core/Event.js";
@@ -218,8 +217,6 @@ function GoogleEarthEnterpriseMapsProvider(options) {
   this._errorEvent = new Event();
 
   this._ready = false;
-  this._readyPromise = defer();
-
   const metadataResource = resource.getDerivedResource({
     url: "query",
     queryParameters: {
@@ -257,32 +254,30 @@ function GoogleEarthEnterpriseMapsProvider(options) {
 
     if (!defined(layer)) {
       message = `Could not find layer with channel (id) of ${that._channel}.`;
-      metadataError = TileProviderError.handleError(
+      metadataError = TileProviderError.reportError(
         metadataError,
         that,
         that._errorEvent,
-        message,
-        undefined,
-        undefined,
-        undefined,
-        requestMetadata
+        message
       );
-      throw new RuntimeError(message);
+      if (metadataError.retry) {
+        return requestMetadata();
+      }
+      return Promise.reject(new RuntimeError(message));
     }
 
     if (!defined(layer.version)) {
       message = `Could not find a version in channel (id) ${that._channel}.`;
-      metadataError = TileProviderError.handleError(
+      metadataError = TileProviderError.reportError(
         metadataError,
         that,
         that._errorEvent,
-        message,
-        undefined,
-        undefined,
-        undefined,
-        requestMetadata
+        message
       );
-      throw new RuntimeError(message);
+      if (metadataError.retry) {
+        return requestMetadata();
+      }
+      return Promise.reject(new RuntimeError(message));
     }
     that._version = layer.version;
 
@@ -302,22 +297,21 @@ function GoogleEarthEnterpriseMapsProvider(options) {
       });
     } else {
       message = `Unsupported projection ${data.projection}.`;
-      metadataError = TileProviderError.handleError(
+      metadataError = TileProviderError.reportError(
         metadataError,
         that,
         that._errorEvent,
-        message,
-        undefined,
-        undefined,
-        undefined,
-        requestMetadata
+        message
       );
-      throw new RuntimeError(message);
+      if (metadataError.retry) {
+        return requestMetadata();
+      }
+      return Promise.reject(new RuntimeError(message));
     }
 
     that._ready = true;
-    that._readyPromise.resolve(true);
-    TileProviderError.handleSuccess(metadataError);
+    TileProviderError.reportSuccess(metadataError);
+    return Promise.resolve(true);
   }
 
   function metadataFailure(e) {
@@ -325,31 +319,23 @@ function GoogleEarthEnterpriseMapsProvider(options) {
       e.message,
       `An error occurred while accessing ${metadataResource.url}.`
     );
-    metadataError = TileProviderError.handleError(
+    metadataError = TileProviderError.reportError(
       metadataError,
       that,
       that._errorEvent,
-      message,
-      undefined,
-      undefined,
-      undefined,
-      requestMetadata
+      message
     );
-    that._readyPromise.reject(new RuntimeError(message));
+    return Promise.reject(new RuntimeError(message));
   }
 
   function requestMetadata() {
-    metadataResource
+    return metadataResource
       .fetchText()
-      .then(function (text) {
-        metadataSuccess(text);
-      })
-      .catch(function (e) {
-        metadataFailure(e);
-      });
+      .then(metadataSuccess)
+      .catch(metadataFailure);
   }
 
-  requestMetadata();
+  this._readyPromise = requestMetadata();
 }
 
 Object.defineProperties(GoogleEarthEnterpriseMapsProvider.prototype, {
@@ -625,7 +611,7 @@ Object.defineProperties(GoogleEarthEnterpriseMapsProvider.prototype, {
    */
   readyPromise: {
     get: function () {
-      return this._readyPromise.promise;
+      return this._readyPromise;
     },
   },
 
@@ -685,10 +671,8 @@ GoogleEarthEnterpriseMapsProvider.prototype.getTileCredits = function (
  * @param {Number} y The tile Y coordinate.
  * @param {Number} level The tile level.
  * @param {Request} [request] The request object. Intended for internal use only.
- * @returns {Promise.<HTMLImageElement|HTMLCanvasElement>|undefined} A promise for the image that will resolve when the image is available, or
- *          undefined if there are too many active requests to the server, and the request
- *          should be retried later.  The resolved image may be either an
- *          Image or a Canvas DOM object.
+ * @returns {Promise.<ImageryTypes>|undefined} A promise for the image that will resolve when the image is available, or
+ *          undefined if there are too many active requests to the server, and the request should be retried later.
  *
  * @exception {DeveloperError} <code>requestImage</code> must not be called before the imagery provider is ready.
  */
@@ -731,10 +715,7 @@ GoogleEarthEnterpriseMapsProvider.prototype.requestImage = function (
  * @param {Number} level The tile level.
  * @param {Number} longitude The longitude at which to pick features.
  * @param {Number} latitude  The latitude at which to pick features.
- * @return {Promise.<ImageryLayerFeatureInfo[]>|undefined} A promise for the picked features that will resolve when the asynchronous
- *                   picking completes.  The resolved value is an array of {@link ImageryLayerFeatureInfo}
- *                   instances.  The array may be empty if no features are found at the given location.
- *                   It may also be undefined if picking is not supported.
+ * @return {undefined} Undefined since picking is not supported.
  */
 GoogleEarthEnterpriseMapsProvider.prototype.pickFeatures = function (
   x,

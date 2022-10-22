@@ -20,9 +20,12 @@ import SceneTransforms from "./SceneTransforms.js";
 import VerticalOrigin from "./VerticalOrigin.js";
 
 /**
+ * <div class="notice">
+ * A billboard is created and its initial
+ * properties are set by calling {@link BillboardCollection#add}. Do not call the constructor directly.
+ * </div>
  * A viewport-aligned image positioned in the 3D scene, that is created
- * and rendered using a {@link BillboardCollection}.  A billboard is created and its initial
- * properties are set by calling {@link BillboardCollection#add}.
+ * and rendered using a {@link BillboardCollection}.
  * <br /><br />
  * <div align='center'>
  * <img src='Images/Billboard.png' width='400' height='300' /><br />
@@ -1142,7 +1145,37 @@ Billboard.prototype._loadImage = function () {
   const imageSubRegion = this._imageSubRegion;
   let imageIndexPromise;
 
+  const that = this;
+  function completeImageLoad(index) {
+    if (
+      that._imageId !== imageId ||
+      that._image !== image ||
+      !BoundingRectangle.equals(that._imageSubRegion, imageSubRegion)
+    ) {
+      // another load occurred before this one finished, ignore the index
+      return;
+    }
+
+    // fill in imageWidth and imageHeight
+    const textureCoordinates = atlas.textureCoordinates[index];
+    that._imageWidth = atlas.texture.width * textureCoordinates.width;
+    that._imageHeight = atlas.texture.height * textureCoordinates.height;
+
+    that._imageIndex = index;
+    that._ready = true;
+    that._image = undefined;
+    that._imageIndexPromise = undefined;
+    makeDirty(that, IMAGE_INDEX_INDEX);
+  }
+
   if (defined(image)) {
+    // No need to wait on imageIndexPromise since these have already been added to the atlas
+    const index = atlas.getImageIndex(imageId);
+    if (defined(index)) {
+      completeImageLoad(index);
+      return;
+    }
+
     imageIndexPromise = atlas.addImage(imageId, image);
   }
   if (defined(imageSubRegion)) {
@@ -1155,33 +1188,10 @@ Billboard.prototype._loadImage = function () {
     return;
   }
 
-  const that = this;
-  imageIndexPromise
-    .then(function (index) {
-      if (
-        that._imageId !== imageId ||
-        that._image !== image ||
-        !BoundingRectangle.equals(that._imageSubRegion, imageSubRegion)
-      ) {
-        // another load occurred before this one finished, ignore the index
-        return;
-      }
-
-      // fill in imageWidth and imageHeight
-      const textureCoordinates = atlas.textureCoordinates[index];
-      that._imageWidth = atlas.texture.width * textureCoordinates.width;
-      that._imageHeight = atlas.texture.height * textureCoordinates.height;
-
-      that._imageIndex = index;
-      that._ready = true;
-      that._image = undefined;
-      that._imageIndexPromise = undefined;
-      makeDirty(that, IMAGE_INDEX_INDEX);
-    })
-    .catch(function (error) {
-      console.error(`Error loading image for billboard: ${error}`);
-      that._imageIndexPromise = undefined;
-    });
+  imageIndexPromise.then(completeImageLoad).catch(function (error) {
+    console.error(`Error loading image for billboard: ${error}`);
+    that._imageIndexPromise = undefined;
+  });
 };
 
 /**

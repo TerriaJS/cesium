@@ -13,7 +13,7 @@ import Request from "../Core/Request.js";
 import Resource from "../Core/Resource.js";
 import RuntimeError from "../Core/RuntimeError.js";
 import TileProviderError from "../Core/TileProviderError.js";
-import protobuf from "../ThirdParty/protobufjs.js";
+import * as protobuf from "protobufjs/dist/minimal/protobuf.js";
 
 /**
  * @private
@@ -79,7 +79,7 @@ GoogleEarthEnterpriseDiscardPolicy.prototype.shouldDiscardImage = function (
  *
  *
  * @example
- * const geeMetadata = new GoogleEarthEnterpriseMetadata('http://www.earthenterprise.org/3d');
+ * const geeMetadata = new GoogleEarthEnterpriseMetadata('http://www.example.com');
  * const gee = new Cesium.GoogleEarthEnterpriseImageryProvider({
  *     metadata : geeMetadata
  * });
@@ -229,7 +229,7 @@ function GoogleEarthEnterpriseImageryProvider(options) {
         const e = new RuntimeError(
           `The server ${metadata.url} doesn't have imagery`
         );
-        metadataError = TileProviderError.handleError(
+        metadataError = TileProviderError.reportError(
           metadataError,
           that,
           that._errorEvent,
@@ -242,12 +242,12 @@ function GoogleEarthEnterpriseImageryProvider(options) {
         return Promise.reject(e);
       }
 
-      TileProviderError.handleSuccess(metadataError);
+      TileProviderError.reportSuccess(metadataError);
       that._ready = result;
       return result;
     })
     .catch(function (e) {
-      metadataError = TileProviderError.handleError(
+      metadataError = TileProviderError.reportError(
         metadataError,
         that,
         that._errorEvent,
@@ -546,10 +546,8 @@ GoogleEarthEnterpriseImageryProvider.prototype.getTileCredits = function (
  * @param {Number} y The tile Y coordinate.
  * @param {Number} level The tile level.
  * @param {Request} [request] The request object. Intended for internal use only.
- * @returns {Promise.<HTMLImageElement|HTMLCanvasElement>|undefined} A promise for the image that will resolve when the image is available, or
- *          undefined if there are too many active requests to the server, and the request
- *          should be retried later.  The resolved image may be either an
- *          Image or a Canvas DOM object.
+ * @returns {Promise.<ImageryTypes>|undefined} A promise for the image that will resolve when the image is available, or
+ *          undefined if there are too many active requests to the server, and the request should be retried later.
  *
  * @exception {DeveloperError} <code>requestImage</code> must not be called before the imagery provider is ready.
  */
@@ -582,12 +580,12 @@ GoogleEarthEnterpriseImageryProvider.prototype.requestImage = function (
       metadata.populateSubtree(x, y, level, metadataRequest);
       return undefined; // No metadata so return undefined so we can be loaded later
     }
-    return invalidImage; // Image doesn't exist
+    return Promise.resolve(invalidImage); // Image doesn't exist
   }
 
   if (!info.hasImagery()) {
     // Already have info and there isn't any imagery here
-    return invalidImage;
+    return Promise.resolve(invalidImage);
   }
   const promise = buildImageResource(
     this,
@@ -638,10 +636,7 @@ GoogleEarthEnterpriseImageryProvider.prototype.requestImage = function (
  * @param {Number} level The tile level.
  * @param {Number} longitude The longitude at which to pick features.
  * @param {Number} latitude  The latitude at which to pick features.
- * @return {Promise.<ImageryLayerFeatureInfo[]>|undefined} A promise for the picked features that will resolve when the asynchronous
- *                   picking completes.  The resolved value is an array of {@link ImageryLayerFeatureInfo}
- *                   instances.  The array may be empty if no features are found at the given location.
- *                   It may also be undefined if picking is not supported.
+ * @return {undefined} Undefined since picking is not supported.
  */
 GoogleEarthEnterpriseImageryProvider.prototype.pickFeatures = function (
   x,

@@ -1,5 +1,4 @@
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import destroyObject from "../Core/destroyObject.js";
 import getMagic from "../Core/getMagic.js";
@@ -30,12 +29,11 @@ function Composite3DTileContent(
   this._tile = tile;
   this._resource = resource;
   this._contents = [];
-  this._readyPromise = defer();
 
   this._metadata = undefined;
   this._group = undefined;
 
-  initialize(this, arrayBuffer, byteOffset, factory);
+  this._readyPromise = initialize(this, arrayBuffer, byteOffset, factory);
 }
 
 Object.defineProperties(Composite3DTileContent.prototype, {
@@ -134,7 +132,7 @@ Object.defineProperties(Composite3DTileContent.prototype, {
 
   readyPromise: {
     get: function () {
-      return this._readyPromise.promise;
+      return this._readyPromise;
     },
   },
 
@@ -235,6 +233,21 @@ function initialize(content, arrayBuffer, byteOffset, factory) {
 
   const contentPromises = [];
 
+  // For caching purposes, models within the composite tile must be
+  // distinguished. To do this, add a query parameter ?compositeIndex=i.
+  // Since composite tiles may contain other composite tiles, check for an
+  // existing prefix and separate them with underscores. e.g.
+  // ?compositeIndex=0_1_1
+  const resource = content._resource;
+  let prefix = resource.queryParameters.compositeIndex;
+  if (defined(prefix)) {
+    // We'll be adding another value at the end, so add an underscore.
+    prefix = `${prefix}_`;
+  } else {
+    // no prefix
+    prefix = "";
+  }
+
   for (let i = 0; i < tilesLength; ++i) {
     const tileType = getMagic(uint8Array, byteOffset);
 
@@ -243,11 +256,19 @@ function initialize(content, arrayBuffer, byteOffset, factory) {
 
     const contentFactory = factory[tileType];
 
+    // Label which content within the composite this is
+    const compositeIndex = `${prefix}${i}`;
+    const childResource = resource.getDerivedResource({
+      queryParameters: {
+        compositeIndex: compositeIndex,
+      },
+    });
+
     if (defined(contentFactory)) {
       const innerContent = contentFactory(
         content._tileset,
         content._tile,
-        content._resource,
+        childResource,
         arrayBuffer,
         byteOffset
       );
@@ -262,13 +283,9 @@ function initialize(content, arrayBuffer, byteOffset, factory) {
     byteOffset += tileByteLength;
   }
 
-  Promise.all(contentPromises)
-    .then(function () {
-      content._readyPromise.resolve(content);
-    })
-    .catch(function (error) {
-      content._readyPromise.reject(error);
-    });
+  return Promise.all(contentPromises).then(function () {
+    return content;
+  });
 }
 
 /**

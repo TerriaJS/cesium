@@ -38,7 +38,7 @@
       <div><input type="checkbox" data-bind="checked: shadows" /> Shadows</div>
     </div>
     <script id="cesium_sandcastle_script">
-      function startup(Cesium) {
+      window.startup = function (Cesium) {
         "use strict";
         //Sandcastle_Begin
         const viewer = new Cesium.Viewer("cesiumContainer", {
@@ -154,6 +154,7 @@
             tileset = viewer.scene.primitives.add(
               new Cesium.Cesium3DTileset({
                 url: options.resource,
+                enableDebugWireframe: true,
               })
             );
 
@@ -201,13 +202,11 @@
         handler.setInputAction(function (movement) {
           const feature = inspectorViewModel.feature;
           if (Cesium.defined(feature)) {
-            const propertyNames = feature.getPropertyNames();
-            const length = propertyNames.length;
+            const propertyIds = feature.getPropertyIds();
+            const length = propertyIds.length;
             for (let i = 0; i < length; ++i) {
-              const propertyName = propertyNames[i];
-              console.log(
-                `${propertyName}: ${feature.getProperty(propertyName)}`
-              );
+              const propertyId = propertyIds[i];
+              console.log(`${propertyId}: ${feature.getProperty(propertyId)}`);
             }
           }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -220,10 +219,10 @@
         }, Cesium.ScreenSpaceEventType.MIDDLE_CLICK);
         //Sandcastle_End
         Sandcastle.finishedLoading();
-      }
+      };
       if (typeof Cesium !== "undefined") {
         window.startupCalled = true;
-        startup(Cesium);
+        window.startup(Cesium);
       }
     </script>
   </body>

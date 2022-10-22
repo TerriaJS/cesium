@@ -17,15 +17,15 @@ import RuntimeError from "../Core/RuntimeError.js";
  *
  * @private
  */
-export default function ResourceLoader() {}
+function ResourceLoader() {}
 
 Object.defineProperties(ResourceLoader.prototype, {
   /**
-   * A promise that resolves to the resource when the resource is ready.
+   * A promise that resolves to the resource when the resource is ready, or undefined if the resource hasn't started loading.
    *
    * @memberof ResourceLoader.prototype
    *
-   * @type {Promise.<ResourceLoader>}
+   * @type {Promise.<ResourceLoader>|undefined}
    * @readonly
    * @private
    */
@@ -54,6 +54,7 @@ Object.defineProperties(ResourceLoader.prototype, {
 
 /**
  * Loads the resource.
+ * @returns {Promise.<ResourceLoader>} A promise which resolves to the loader when the resource loading is completed.
  * @private
  */
 ResourceLoader.prototype.load = function () {
@@ -91,7 +92,13 @@ ResourceLoader.prototype.getError = function (errorMessage, error) {
   if (defined(error)) {
     errorMessage += `\n${error.message}`;
   }
-  return new RuntimeError(errorMessage);
+
+  const runtimeError = new RuntimeError(errorMessage);
+  if (defined(error)) {
+    runtimeError.stack = `Original stack:\n${error.stack}\nHandler stack:\n${runtimeError.stack}`;
+  }
+
+  return runtimeError;
 };
 
 /**
@@ -128,3 +135,5 @@ ResourceLoader.prototype.destroy = function () {
   this.unload();
   return destroyObject(this);
 };
+
+export default ResourceLoader;

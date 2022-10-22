@@ -16,7 +16,7 @@ import Expression from "./Expression.js";
  * @alias Cesium3DTileStyle
  * @constructor
  *
- * @param {Resource|String|Object} [style] The url of a style or an object defining a style.
+ * @param {Object} [style] An object defining a style.
  *
  * @example
  * tileset.style = new Cesium.Cesium3DTileStyle({
@@ -82,19 +82,7 @@ function Cesium3DTileStyle(style) {
 
   this._colorShaderTranslucent = false;
 
-  let promise;
-  if (typeof style === "string" || style instanceof Resource) {
-    const resource = Resource.createIfNeeded(style);
-    promise = resource.fetchJson(style);
-  } else {
-    promise = Promise.resolve(style);
-  }
-
-  const that = this;
-  this._readyPromise = promise.then(function (styleJson) {
-    setup(that, styleJson);
-    return that;
-  });
+  setup(this, style);
 }
 
 function setup(that, styleJson) {
@@ -182,51 +170,10 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    * @readonly
    *
    * @default {}
-   *
-   * @exception {DeveloperError} The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true.
    */
   style: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._style;
-    },
-  },
-
-  /**
-   * When <code>true</code>, the style is ready and its expressions can be evaluated.  When
-   * a style is constructed with an object, as opposed to a url, this is <code>true</code> immediately.
-   *
-   * @memberof Cesium3DTileStyle.prototype
-   *
-   * @type {Boolean}
-   * @readonly
-   *
-   * @default false
-   */
-  ready: {
-    get: function () {
-      return this._ready;
-    },
-  },
-
-  /**
-   * Gets the promise that will be resolved when the the style is ready and its expressions can be evaluated.
-   *
-   * @memberof Cesium3DTileStyle.prototype
-   *
-   * @type {Promise.<Cesium3DTileStyle>}
-   * @readonly
-   */
-  readyPromise: {
-    get: function () {
-      return this._readyPromise;
     },
   },
 
@@ -243,8 +190,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    * @memberof Cesium3DTileStyle.prototype
    *
    * @type {StyleExpression}
-   *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
    *
    * @example
    * const style = new Cesium3DTileStyle({
@@ -285,14 +230,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   show: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._show;
     },
     set: function (value) {
@@ -315,8 +252,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    * @memberof Cesium3DTileStyle.prototype
    *
    * @type {StyleExpression}
-   *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
    *
    * @example
    * const style = new Cesium3DTileStyle({
@@ -350,14 +285,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   color: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._color;
     },
     set: function (value) {
@@ -380,8 +307,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    * @memberof Cesium3DTileStyle.prototype
    *
    * @type {StyleExpression}
-   *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
    *
    * @example
    * const style = new Cesium3DTileStyle({
@@ -420,14 +345,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   pointSize: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._pointSize;
     },
     set: function (value) {
@@ -451,8 +368,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -472,14 +387,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   pointOutlineColor: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._pointOutlineColor;
     },
     set: function (value) {
@@ -504,8 +411,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -525,14 +430,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   pointOutlineWidth: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._pointOutlineWidth;
     },
     set: function (value) {
@@ -557,8 +454,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -578,14 +473,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelColor: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelColor;
     },
     set: function (value) {
@@ -608,8 +495,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -629,14 +514,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelOutlineColor: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelOutlineColor;
     },
     set: function (value) {
@@ -661,8 +538,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -682,14 +557,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelOutlineWidth: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelOutlineWidth;
     },
     set: function (value) {
@@ -714,8 +581,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -735,14 +600,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   font: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._font;
     },
     set: function (value) {
@@ -765,13 +622,11 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
    * const style = new Cesium3DTileStyle({
-   *     labelStyle : '(${Temperature} > 90) ? ' + LabelStyle.FILL_AND_OUTLINE + ' : ' + LabelStyle.FILL
+   *     labelStyle : `(\${Temperature} > 90) ? ${LabelStyle.FILL_AND_OUTLINE} : ${LabelStyle.FILL}`
    * });
    * style.labelStyle.evaluate(feature); // returns a LabelStyle
    *
@@ -786,14 +641,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelStyle: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelStyle;
     },
     set: function (value) {
@@ -816,8 +663,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -837,14 +682,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelText: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelText;
     },
     set: function (value) {
@@ -867,8 +704,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -888,14 +723,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   backgroundColor: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._backgroundColor;
     },
     set: function (value) {
@@ -920,8 +747,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -932,14 +757,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   backgroundPadding: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._backgroundPadding;
     },
     set: function (value) {
@@ -964,8 +781,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -985,14 +800,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   backgroundEnabled: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._backgroundEnabled;
     },
     set: function (value) {
@@ -1017,8 +824,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1029,14 +834,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   scaleByDistance: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._scaleByDistance;
     },
     set: function (value) {
@@ -1061,8 +858,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1073,14 +868,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   translucencyByDistance: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._translucencyByDistance;
     },
     set: function (value) {
@@ -1105,8 +892,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1117,14 +902,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   distanceDisplayCondition: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._distanceDisplayCondition;
     },
     set: function (value) {
@@ -1149,8 +926,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1170,14 +945,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   heightOffset: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._heightOffset;
     },
     set: function (value) {
@@ -1200,8 +967,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1221,14 +986,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   anchorLineEnabled: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._anchorLineEnabled;
     },
     set: function (value) {
@@ -1253,8 +1010,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1274,14 +1029,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   anchorLineColor: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._anchorLineColor;
     },
     set: function (value) {
@@ -1306,8 +1053,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1327,14 +1072,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   image: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._image;
     },
     set: function (value) {
@@ -1357,8 +1094,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1369,14 +1104,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   disableDepthTestDistance: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._disableDepthTestDistance;
     },
     set: function (value) {
@@ -1401,8 +1128,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1422,14 +1147,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   horizontalOrigin: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._horizontalOrigin;
     },
     set: function (value) {
@@ -1454,8 +1171,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1475,14 +1190,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   verticalOrigin: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._verticalOrigin;
     },
     set: function (value) {
@@ -1492,48 +1199,38 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
   },
 
   /**
-         Gets or sets the {@link StyleExpression} object used to evaluate the style's <code>labelHorizontalOrigin</code> property. Alternatively a string or object defining a number style can be used.
-         * The getter will return the internal {@link Expression} or {@link ConditionsExpression}, which may differ from the value provided to the setter.
-         * <p>
-         * The expression must return a <code>HorizontalOrigin</code>.
-         * </p>
-         * <p>
-         * This expression is only applicable to point features in a Vector tile.
-         * </p>
-         *
-         * @memberof Cesium3DTileStyle.prototype
-         *
-         * @type {StyleExpression}
-         *
-         * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-         *
-         * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
-         *
-         * @example
-         * const style = new Cesium3DTileStyle({
-         *     labelHorizontalOrigin : HorizontalOrigin.LEFT
-         * });
-         * style.labelHorizontalOrigin.evaluate(feature); // returns a HorizontalOrigin
-         *
-         * @example
-         * const style = new Cesium.Cesium3DTileStyle();
-         * // Override labelHorizontalOrigin expression with a custom function
-         * style.labelHorizontalOrigin = {
-         *     evaluate : function(feature) {
-         *         return HorizontalOrigin.CENTER;
-         *     }
-         * };
-         */
+   Gets or sets the {@link StyleExpression} object used to evaluate the style's <code>labelHorizontalOrigin</code> property. Alternatively a string or object defining a number style can be used.
+    * The getter will return the internal {@link Expression} or {@link ConditionsExpression}, which may differ from the value provided to the setter.
+    * <p>
+    * The expression must return a <code>HorizontalOrigin</code>.
+    * </p>
+    * <p>
+    * This expression is only applicable to point features in a Vector tile.
+    * </p>
+    *
+    * @memberof Cesium3DTileStyle.prototype
+    *
+    * @type {StyleExpression}
+    *
+    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
+    *
+    * @example
+    * const style = new Cesium3DTileStyle({
+    *     labelHorizontalOrigin : HorizontalOrigin.LEFT
+    * });
+    * style.labelHorizontalOrigin.evaluate(feature); // returns a HorizontalOrigin
+    *
+    * @example
+    * const style = new Cesium.Cesium3DTileStyle();
+    * // Override labelHorizontalOrigin expression with a custom function
+    * style.labelHorizontalOrigin = {
+    *     evaluate : function(feature) {
+    *         return HorizontalOrigin.CENTER;
+    *     }
+    * };
+    */
   labelHorizontalOrigin: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelHorizontalOrigin;
     },
     set: function (value) {
@@ -1558,8 +1255,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @experimental This feature is using part of the 3D Tiles spec that is not final and is subject to change without Cesium's standard deprecation policy.
    *
    * @example
@@ -1579,14 +1274,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   labelVerticalOrigin: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._labelVerticalOrigin;
     },
     set: function (value) {
@@ -1605,8 +1292,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    *
    * @type {StyleExpression}
    *
-   * @exception {DeveloperError} The style is not loaded.  Use {@link Cesium3DTileStyle#readyPromise} or wait for {@link Cesium3DTileStyle#ready} to be true.
-   *
    * @example
    * const style = new Cesium3DTileStyle({
    *     meta : {
@@ -1617,14 +1302,6 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
    */
   meta: {
     get: function () {
-      //>>includeStart('debug', pragmas.debug);
-      if (!this._ready) {
-        throw new DeveloperError(
-          "The style is not loaded.  Use Cesium3DTileStyle.readyPromise or wait for Cesium3DTileStyle.ready to be true."
-        );
-      }
-      //>>includeEnd('debug');
-
       return this._meta;
     },
     set: function (value) {
@@ -1632,6 +1309,28 @@ Object.defineProperties(Cesium3DTileStyle.prototype, {
     },
   },
 });
+
+/**
+ * Asynchronously creates a Cesium3DTileStyle from a url.
+ *
+ * @param {Resource|String} url The url of the style to be loaded.
+ *
+ * @returns {Promise.<Cesium3DTileStyle>} A promise which resolves to the created style
+ *
+ * @private
+ */
+Cesium3DTileStyle.fromUrl = function (url) {
+  //>>includeStart('debug', pragmas.debug);
+  if (!defined(url)) {
+    throw new DeveloperError("url is required");
+  }
+  //>>includeEnd('debug');
+
+  const resource = Resource.createIfNeeded(url);
+  return resource.fetchJson(url).then(function (styleJson) {
+    return new Cesium3DTileStyle(styleJson);
+  });
+};
 
 /**
  * Gets the color shader function for this style.

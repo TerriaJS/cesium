@@ -1,5 +1,4 @@
 import defaultValue from "./defaultValue.js";
-import defer from "./defer.js";
 import defined from "./defined.js";
 import DeveloperError from "./DeveloperError.js";
 import Fullscreen from "./Fullscreen.js";
@@ -124,7 +123,7 @@ let edgeVersionResult;
 function isEdge() {
   if (!defined(isEdgeResult)) {
     isEdgeResult = false;
-    const fields = / Edge\/([\.0-9]+)/.exec(theNavigator.userAgent);
+    const fields = / Edg\/([\.0-9]+)/.exec(theNavigator.userAgent);
     if (fields !== null) {
       isEdgeResult = true;
       edgeVersionResult = extractVersion(fields[1]);
@@ -158,6 +157,18 @@ function isWindows() {
     isWindowsResult = /Windows/i.test(theNavigator.appVersion);
   }
   return isWindowsResult;
+}
+
+let isIPadOrIOSResult;
+function isIPadOrIOS() {
+  if (!defined(isIPadOrIOSResult)) {
+    isIPadOrIOSResult =
+      navigator.platform === "iPhone" ||
+      navigator.platform === "iPod" ||
+      navigator.platform === "iPad";
+  }
+
+  return isIPadOrIOSResult;
 }
 
 function firefoxVersion() {
@@ -224,31 +235,22 @@ supportsWebP.initialize = function () {
     return supportsWebP._promise;
   }
 
-  const supportsWebPDeferred = defer();
-  supportsWebP._promise = supportsWebPDeferred.promise;
-  if (isEdge()) {
-    // Edge's WebP support with WebGL is incomplete.
-    // See bug report: https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/19221241/
-    supportsWebP._result = false;
-    supportsWebPDeferred.resolve(supportsWebP._result);
-    return supportsWebPDeferred.promise;
-  }
+  supportsWebP._promise = new Promise((resolve) => {
+    const image = new Image();
+    image.onload = function () {
+      supportsWebP._result = image.width > 0 && image.height > 0;
+      resolve(supportsWebP._result);
+    };
 
-  const image = new Image();
-  image.onload = function () {
-    supportsWebP._result = image.width > 0 && image.height > 0;
-    supportsWebPDeferred.resolve(supportsWebP._result);
-  };
+    image.onerror = function () {
+      supportsWebP._result = false;
+      resolve(supportsWebP._result);
+    };
+    image.src =
+      "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA";
+  });
 
-  image.onerror = function () {
-    supportsWebP._result = false;
-    supportsWebPDeferred.resolve(supportsWebP._result);
-  };
-
-  image.src =
-    "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA";
-
-  return supportsWebPDeferred.promise;
+  return supportsWebP._promise;
 };
 Object.defineProperties(supportsWebP, {
   initialized: {
@@ -310,6 +312,7 @@ const FeatureDetection = {
   isFirefox: isFirefox,
   firefoxVersion: firefoxVersion,
   isWindows: isWindows,
+  isIPadOrIOS: isIPadOrIOS,
   hardwareConcurrency: defaultValue(theNavigator.hardwareConcurrency, 3),
   supportsPointerEvents: supportsPointerEvents,
   supportsImageRenderingPixelated: supportsImageRenderingPixelated,
@@ -403,6 +406,6 @@ FeatureDetection.supportsWebWorkers = function () {
  * @see {@link https://developer.mozilla.org/en-US/docs/WebAssembly}
  */
 FeatureDetection.supportsWebAssembly = function () {
-  return typeof WebAssembly !== "undefined" && !FeatureDetection.isEdge();
+  return typeof WebAssembly !== "undefined";
 };
 export default FeatureDetection;

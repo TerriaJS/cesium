@@ -148,6 +148,9 @@ buildModuleUrl.setBaseUrl = function (value) {
 
 /**
  * Gets the base URL for resolving modules.
+ *
+ * @function
+ * @returns {String} The configured base URL
  */
 buildModuleUrl.getCesiumBaseUrl = getCesiumBaseUrl;
 

@@ -1,17 +1,18 @@
-import { BoundingRectangle } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Color } from "../../Source/Cesium.js";
-import { defined } from "../../Source/Cesium.js";
-import { HeadingPitchRange } from "../../Source/Cesium.js";
-import { Matrix4 } from "../../Source/Cesium.js";
-import { PixelFormat } from "../../Source/Cesium.js";
-import { Transforms } from "../../Source/Cesium.js";
-import { PixelDatatype } from "../../Source/Cesium.js";
-import { Model } from "../../Source/Cesium.js";
-import { PostProcessStage } from "../../Source/Cesium.js";
-import { PostProcessStageSampleMode } from "../../Source/Cesium.js";
+import {
+  BoundingRectangle,
+  Color,
+  defined,
+  HeadingPitchRange,
+  Math as CesiumMath,
+  PixelFormat,
+  PixelDatatype,
+  PostProcessStage,
+  PostProcessStageSampleMode,
+} from "../../../Source/Cesium.js";
+
 import createScene from "../createScene.js";
 import pollToPromise from "../pollToPromise.js";
+import loadAndZoomToModel from "./Model/loadAndZoomToModel.js";
 
 describe(
   "Scene/PostProcessStage",
@@ -233,77 +234,46 @@ describe(
         });
     });
 
-    let model;
-
-    function loadModel(url) {
-      model = scene.primitives.add(
-        Model.fromGltf({
-          modelMatrix: Transforms.eastNorthUpToFixedFrame(
-            Cartesian3.fromDegrees(0.0, 0.0, 100.0)
-          ),
-          url: url,
-        })
-      );
-      model.zoomTo = function () {
-        const camera = scene.camera;
-        const center = Matrix4.multiplyByPoint(
-          model.modelMatrix,
-          model.boundingSphere.center,
-          new Cartesian3()
-        );
-        const r =
-          4.0 * Math.max(model.boundingSphere.radius, camera.frustum.near);
-        camera.lookAt(center, new HeadingPitchRange(0.0, 0.0, r));
-      };
-
-      return pollToPromise(
-        function () {
-          // Render scene to progressively load the model
-          scene.renderForSpecs();
-          return model.ready;
-        },
-        { timeout: 10000 }
-      )
-        .then(function () {
-          return model;
-        })
-        .catch(function () {
-          return Promise.reject(model);
-        });
-    }
-
     it("per-feature post process stage", function () {
-      return loadModel("./Data/Models/Box/CesiumBoxTest.gltf").then(
-        function () {
-          model.zoomTo();
-          const fs =
-            "uniform sampler2D colorTexture; \n" +
-            "varying vec2 v_textureCoordinates; \n" +
-            "void main() { \n" +
-            "    if (czm_selected(v_textureCoordinates)) { \n" +
-            "        gl_FragColor = texture2D(colorTexture, v_textureCoordinates); \n" +
-            "    } else { \n" +
-            "        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); \n" +
-            "    } \n" +
-            "} \n";
-          const stage = scene.postProcessStages.add(
-            new PostProcessStage({
-              fragmentShader: fs,
-            })
-          );
-          stage.selected = [];
-          return pollToPromise(function () {
-            scene.renderForSpecs();
-            return stage.ready;
-          }).then(function () {
-            expect(scene).toRender([255, 0, 0, 255]);
-            stage.selected = [model];
-            expect(scene).toRenderAndCall(function (rgba) {
-              expect(rgba).not.toEqual([255, 0, 0, 255]);
-            });
+      // This model gets clipped if log depth is disabled, so zoom out
+      // the camera just a little
+      const offset = new HeadingPitchRange(0, -CesiumMath.PI_OVER_FOUR, 2);
+
+      return loadAndZoomToModel(
+        {
+          url: "./Data/Models/glTF-2.0/BoxTextured/glTF/BoxTextured.gltf",
+          offset: offset,
+          incrementallyLoadTextures: false,
+        },
+        scene
+      ).then(function (model) {
+        const fs =
+          "uniform sampler2D colorTexture; \n" +
+          "varying vec2 v_textureCoordinates; \n" +
+          "void main() { \n" +
+          "    if (czm_selected(v_textureCoordinates)) { \n" +
+          "        gl_FragColor = texture2D(colorTexture, v_textureCoordinates); \n" +
+          "    } else { \n" +
+          "        gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); \n" +
+          "    } \n" +
+          "} \n";
+        const stage = scene.postProcessStages.add(
+          new PostProcessStage({
+            fragmentShader: fs,
+          })
+        );
+        stage.selected = [];
+        return pollToPromise(function () {
+          scene.renderForSpecs();
+          return stage.ready;
+        }).then(function () {
+          expect(scene).toRender([255, 0, 0, 255]);
+          stage.selected = [model];
+          expect(scene).toRenderAndCall(function (rgba) {
+            expect(rgba).not.toEqual([255, 0, 0, 255]);
           });
-        }
-      );
+        });
+      });
     });
 
     it("destroys", function () {

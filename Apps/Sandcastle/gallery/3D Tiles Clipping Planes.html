@@ -62,7 +62,7 @@
     </div>
 
     <script id="cesium_sandcastle_script">
-      function startup(Cesium) {
+      window.startup = function (Cesium) {
         "use strict";
         //Sandcastle_Begin
         // Add a clipping plane, a plane geometry to show the representation of the
@@ -73,6 +73,10 @@
           selectionIndicator: false,
         });
         const scene = viewer.scene;
+
+        viewer.clock.currentTime = Cesium.JulianDate.fromIso8601(
+          "2022-08-01T00:00:00Z"
+        );
 
         const clipObjects = ["BIM", "Point Cloud", "Instanced", "Model"];
         const viewModel = {
@@ -281,7 +285,7 @@
         }
 
         // Power Plant design model provided by Bentley Systems
-        const bimUrl = Cesium.IonResource.fromAssetId(8564);
+        const bimUrl = Cesium.IonResource.fromAssetId(1240402);
         const pointCloudUrl = Cesium.IonResource.fromAssetId(16421);
         const instancedUrl =
           "../../SampleData/Cesium3DTiles/Instanced/InstancedOrientation/tileset.json";
@@ -340,10 +344,10 @@
 
         //Sandcastle_End
         Sandcastle.finishedLoading();
-      }
+      };
       if (typeof Cesium !== "undefined") {
         window.startupCalled = true;
-        startup(Cesium);
+        window.startup(Cesium);
       }
     </script>
   </body>

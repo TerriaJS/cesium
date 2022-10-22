@@ -2,7 +2,6 @@ import buildModuleUrl from "../Core/buildModuleUrl.js";
 import Check from "../Core/Check.js";
 import Credit from "../Core/Credit.js";
 import defaultValue from "../Core/defaultValue.js";
-import defer from "../Core/defer.js";
 import defined from "../Core/defined.js";
 import DeveloperError from "../Core/DeveloperError.js";
 import Event from "../Core/Event.js";
@@ -196,7 +195,6 @@ function BingMapsImageryProvider(options) {
   this._errorEvent = new Event();
 
   this._ready = false;
-  this._readyPromise = defer();
 
   let tileProtocol = this._tileProtocol;
 
@@ -228,8 +226,7 @@ function BingMapsImageryProvider(options) {
 
   function metadataSuccess(data) {
     if (data.resourceSets.length !== 1) {
-      metadataFailure();
-      return;
+      return metadataFailure();
     }
     const resource = data.resourceSets[0].resources[0];
 
@@ -278,37 +275,39 @@ function BingMapsImageryProvider(options) {
     }
 
     that._ready = true;
-    that._readyPromise.resolve(true);
-    TileProviderError.handleSuccess(metadataError);
+    TileProviderError.reportSuccess(metadataError);
+    return Promise.resolve(true);
   }
 
   function metadataFailure(e) {
     const message = `An error occurred while accessing ${metadataResource.url}.`;
-    metadataError = TileProviderError.handleError(
+    metadataError = TileProviderError.reportError(
       metadataError,
       that,
       that._errorEvent,
       message,
       undefined,
       undefined,
-      undefined,
-      requestMetadata
+      undefined
     );
-    that._readyPromise.reject(new RuntimeError(message));
+    if (metadataError.retry) {
+      return requestMetadata();
+    }
+    return Promise.reject(new RuntimeError(message));
   }
 
   const cacheKey = metadataResource.url;
   function requestMetadata() {
     const promise = metadataResource.fetchJsonp("jsonp");
     BingMapsImageryProvider._metadataCache[cacheKey] = promise;
-    promise.then(metadataSuccess).catch(metadataFailure);
+    return promise.then(metadataSuccess).catch(metadataFailure);
   }
 
   const promise = BingMapsImageryProvider._metadataCache[cacheKey];
   if (defined(promise)) {
-    promise.then(metadataSuccess).catch(metadataFailure);
+    this._readyPromise = promise.then(metadataSuccess).catch(metadataFailure);
   } else {
-    requestMetadata();
+    this._readyPromise = requestMetadata();
   }
 }
 
@@ -558,7 +557,7 @@ Object.defineProperties(BingMapsImageryProvider.prototype, {
    */
   readyPromise: {
     get: function () {
-      return this._readyPromise.promise;
+      return this._readyPromise;
     },
   },
 
@@ -636,10 +635,8 @@ BingMapsImageryProvider.prototype.getTileCredits = function (x, y, level) {
  * @param {Number} y The tile Y coordinate.
  * @param {Number} level The tile level.
  * @param {Request} [request] The request object. Intended for internal use only.
- * @returns {Promise.<HTMLImageElement|HTMLCanvasElement>|undefined} A promise for the image that will resolve when the image is available, or
- *          undefined if there are too many active requests to the server, and the request
- *          should be retried later.  The resolved image may be either an
- *          Image or a Canvas DOM object.
+ * @returns {Promise.<ImageryTypes>|undefined} A promise for the image that will resolve when the image is available, or
+ *          undefined if there are too many active requests to the server, and the request should be retried later.
  *
  * @exception {DeveloperError} <code>requestImage</code> must not be called before the imagery provider is ready.
  */
@@ -686,10 +683,7 @@ BingMapsImageryProvider.prototype.requestImage = function (
  * @param {Number} level The tile level.
  * @param {Number} longitude The longitude at which to pick features.
  * @param {Number} latitude  The latitude at which to pick features.
- * @return {Promise.<ImageryLayerFeatureInfo[]>|undefined} A promise for the picked features that will resolve when the asynchronous
- *                   picking completes.  The resolved value is an array of {@link ImageryLayerFeatureInfo}
- *                   instances.  The array may be empty if no features are found at the given location.
- *                   It may also be undefined if picking is not supported.
+ * @return {undefined} Undefined since picking is not supported.
  */
 BingMapsImageryProvider.prototype.pickFeatures = function (
   x,

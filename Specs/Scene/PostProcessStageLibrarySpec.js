@@ -1,24 +1,33 @@
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { HeadingPitchRange } from "../../Source/Cesium.js";
-import { HeadingPitchRoll } from "../../Source/Cesium.js";
-import { Matrix4 } from "../../Source/Cesium.js";
-import { Transforms } from "../../Source/Cesium.js";
-import { Model } from "../../Source/Cesium.js";
-import { PostProcessStageLibrary } from "../../Source/Cesium.js";
+import {
+  Cartesian3,
+  HeadingPitchRoll,
+  HeadingPitchRange,
+  Transforms,
+  PostProcessStageLibrary,
+} from "../../../Source/Cesium.js";
+
 import createCanvas from "../createCanvas.js";
 import createScene from "../createScene.js";
 import pollToPromise from "../pollToPromise.js";
 import ViewportPrimitive from "../ViewportPrimitive.js";
+import loadAndZoomToModel from "./Model/loadAndZoomToModel.js";
 
 describe(
   "Scene/PostProcessStageLibrary",
   function () {
+    const boxTexturedUrl =
+      "./Data/Models/glTF-2.0/BoxTextured/glTF/BoxTextured.gltf";
+
     let scene;
+    let originalBloomBrightness;
 
     beforeAll(function () {
       scene = createScene({
         canvas: createCanvas(3, 3),
       });
+
+      originalBloomBrightness =
+        scene.postProcessStages.bloom.uniforms.brightness;
     });
 
     afterAll(function () {
@@ -31,48 +40,10 @@ describe(
 
       scene.postProcessStages.fxaa.enabled = false;
       scene.postProcessStages.bloom.enabled = false;
+      scene.postProcessStages.bloom.uniforms.brightness = originalBloomBrightness;
       scene.postProcessStages.ambientOcclusion.enabled = false;
       scene.renderForSpecs();
     });
-
-    let model;
-
-    function loadModel(url) {
-      model = scene.primitives.add(
-        Model.fromGltf({
-          modelMatrix: Transforms.eastNorthUpToFixedFrame(
-            Cartesian3.fromDegrees(0.0, 0.0, 100.0)
-          ),
-          url: url,
-        })
-      );
-      model.zoomTo = function () {
-        const camera = scene.camera;
-        const center = Matrix4.multiplyByPoint(
-          model.modelMatrix,
-          model.boundingSphere.center,
-          new Cartesian3()
-        );
-        const r =
-          4.0 * Math.max(model.boundingSphere.radius, camera.frustum.near);
-        camera.lookAt(center, new HeadingPitchRange(0.0, 0.0, r));
-      };
-
-      return pollToPromise(
-        function () {
-          // Render scene to progressively load the model
-          scene.renderForSpecs();
-          return model.ready;
-        },
-        { timeout: 10000 }
-      )
-        .then(function () {
-          return model;
-        })
-        .catch(function () {
-          return Promise.reject(model);
-        });
-    }
 
     it("black and white", function () {
       const fs =
@@ -116,34 +87,35 @@ describe(
     });
 
     it("per-feature black and white", function () {
-      return loadModel("./Data/Models/Box/CesiumBoxTest.gltf").then(
-        function () {
-          model.zoomTo();
+      return loadAndZoomToModel(
+        {
+          url: boxTexturedUrl,
+        },
+        scene
+      ).then(function (model) {
+        const stage = scene.postProcessStages.add(
+          PostProcessStageLibrary.createBlackAndWhiteStage()
+        );
+        stage.selected = [];
 
-          const stage = scene.postProcessStages.add(
-            PostProcessStageLibrary.createBlackAndWhiteStage()
-          );
-          stage.selected = [];
-
-          return pollToPromise(function () {
-            scene.renderForSpecs();
-            return stage.ready;
-          }).then(function () {
-            let color;
-            expect(scene).toRenderAndCall(function (rgba) {
-              color = rgba;
-              expect(rgba[1]).toEqual(rgba[0]);
-              expect(rgba[2]).toEqual(rgba[0]);
-              expect(rgba[3]).toEqual(255);
-            });
-
-            stage.selected = [model];
-            expect(scene).toRenderAndCall(function (rgba) {
-              expect(rgba).not.toEqual(color);
-            });
+        return pollToPromise(function () {
+          scene.renderForSpecs();
+          return stage.ready;
+        }).then(function () {
+          let color;
+          expect(scene).toRenderAndCall(function (rgba) {
+            color = rgba;
+            expect(rgba[1]).toEqual(rgba[0]);
+            expect(rgba[2]).toEqual(rgba[0]);
+            expect(rgba[3]).toEqual(255);
           });
-        }
-      );
+
+          stage.selected = [model];
+          expect(scene).toRenderAndCall(function (rgba) {
+            expect(rgba).not.toEqual(color);
+          });
+        });
+      });
     });
 
     it("brightness", function () {
@@ -333,52 +305,46 @@ describe(
         new HeadingPitchRoll()
       );
 
-      const model = scene.primitives.add(
-        Model.fromGltf({
-          url: "./Data/Models/Box/CesiumBoxTest.gltf",
+      return loadAndZoomToModel(
+        {
+          url: boxTexturedUrl,
+          // Ensure the texture loads every time
+          incrementallyLoadTextures: false,
           modelMatrix: modelMatrix,
-          scale: 40.0,
-        })
-      );
+        },
+        scene
+      ).then(function () {
+        // The range is chosen carefully here. If it's too small and log depth
+        // is off, the model may clip out of view. If it is too large, the
+        // background will be visible in the 3x3 canvas and the color checks
+        // below will fail.
+        scene.camera.lookAt(origin, new HeadingPitchRange(0.0, 0.0, 1.5));
 
-      let ready = false;
-      model.readyPromise.then(function () {
-        ready = true;
-      });
-
-      const offset = new Cartesian3(
-        -37.048378684557974,
-        -24.852967044804245,
-        4.352023653686047
-      );
-      scene.camera.lookAt(origin, offset);
-
-      return pollToPromise(function () {
-        scene.render();
-        return ready;
-      }).then(function () {
+        // Render without depth of field
+        let originalColor;
         expect(scene).toRenderAndCall(function (rgba) {
+          originalColor = rgba;
           for (let i = 0; i < rgba.length; i += 4) {
             expect(rgba[i]).toBeGreaterThan(0);
-            expect(rgba[i + 1]).toEqual(0);
-            expect(rgba[i + 2]).toEqual(0);
+            expect(rgba[i + 1]).toBeGreaterThan(0);
+            expect(rgba[i + 2]).toBeGreaterThan(0);
             expect(rgba[i + 3]).toEqual(255);
           }
+        });
 
-          scene.postProcessStages.add(
-            PostProcessStageLibrary.createDepthOfFieldStage()
-          );
-          scene.renderForSpecs();
-          expect(scene).toRenderAndCall(function (rgba2) {
-            for (let i = 0; i < rgba.length; i += 4) {
-              expect(rgba2[i]).toBeGreaterThan(0);
-              expect(rgba2[i + 1]).toEqual(0);
-              expect(rgba2[i + 2]).toEqual(0);
-              expect(rgba2[i + 3]).toEqual(255);
-
-              expect(rgba2[i]).not.toEqual(rgba[i]);
-            }
-          });
+        // Render with depth of field and compare
+        scene.postProcessStages.add(
+          PostProcessStageLibrary.createDepthOfFieldStage()
+        );
+        scene.renderForSpecs();
+        expect(scene).toRenderAndCall(function (rgba) {
+          expect(rgba).not.toEqual(originalColor);
+          for (let i = 0; i < rgba.length; i += 4) {
+            expect(rgba[i]).toBeGreaterThan(0);
+            expect(rgba[i + 1]).toBeGreaterThan(0);
+            expect(rgba[i + 2]).toBeGreaterThan(0);
+            expect(rgba[i + 3]).toEqual(255);
+          }
         });
       });
     });
@@ -417,7 +383,6 @@ describe(
           expect(rgba[i + 3]).toEqual(255);
         }
       });
-      scene.postProcessStages.ambientOcclusion.enabled = false;
     });
 
     it("ambient occlusion uniforms", function () {
@@ -461,51 +426,47 @@ describe(
         new HeadingPitchRoll()
       );
 
-      const model = scene.primitives.add(
-        Model.fromGltf({
-          url: "./Data/Models/Box/CesiumBoxTest.gltf",
+      return loadAndZoomToModel(
+        {
+          url: boxTexturedUrl,
+          // Ensure the texture loads every time
+          incrementallyLoadTextures: false,
           modelMatrix: modelMatrix,
-          scale: 40.0,
-        })
-      );
+        },
+        scene
+      ).then(function () {
+        // The range is chosen carefully here. If it's too small and log depth
+        // is off, the model may clip out of view. If it is too large, the
+        // background will be visible in the 3x3 canvas and the color checks
+        // below will fail.
+        scene.camera.lookAt(origin, new HeadingPitchRange(0.0, 0.0, 1.5));
 
-      let ready = false;
-      model.readyPromise.then(function () {
-        ready = true;
-      });
-
-      const offset = new Cartesian3(
-        -37.048378684557974,
-        -24.852967044804245,
-        4.352023653686047
-      );
-      scene.camera.lookAt(origin, offset);
-
-      return pollToPromise(function () {
-        scene.render();
-        return ready;
-      }).then(function () {
+        // Render without bloom
+        let originalColor;
         expect(scene).toRenderAndCall(function (rgba) {
+          originalColor = rgba;
           for (let i = 0; i < rgba.length; i += 4) {
             expect(rgba[i]).toBeGreaterThan(0);
-            expect(rgba[i + 1]).toEqual(0);
-            expect(rgba[i + 2]).toEqual(0);
+            expect(rgba[i + 1]).toBeGreaterThan(0);
+            expect(rgba[i + 2]).toBeGreaterThan(0);
             expect(rgba[i + 3]).toEqual(255);
           }
+        });
 
-          scene.postProcessStages.bloom.enabled = true;
-          scene.renderForSpecs();
-          expect(scene).toRenderAndCall(function (rgba2) {
-            for (let i = 0; i < rgba.length; i += 4) {
-              expect(rgba2[i]).toBeGreaterThan(0);
-              expect(rgba2[i + 1]).toEqual(0);
-              expect(rgba2[i + 2]).toEqual(0);
-              expect(rgba2[i + 3]).toEqual(255);
-
-              expect(rgba2[i]).not.toEqual(rgba[i]);
-            }
-          });
-          scene.postProcessStages.bloom.enabled = false;
+        // Render with bloom and compare
+        const bloom = scene.postProcessStages.bloom;
+        bloom.enabled = true;
+        // increase the brightness to make the difference more noticeable
+        bloom.uniforms.brightness = 0.5;
+        scene.renderForSpecs();
+        expect(scene).toRenderAndCall(function (rgba) {
+          expect(rgba).not.toEqual(originalColor);
+          for (let i = 0; i < rgba.length; i += 4) {
+            expect(rgba[i]).toBeGreaterThan(0);
+            expect(rgba[i + 1]).toBeGreaterThan(0);
+            expect(rgba[i + 2]).toBeGreaterThan(0);
+            expect(rgba[i + 3]).toEqual(255);
+          }
         });
       });
     });

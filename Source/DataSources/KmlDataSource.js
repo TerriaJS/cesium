@@ -40,9 +40,9 @@ import HeightReference from "../Scene/HeightReference.js";
 import HorizontalOrigin from "../Scene/HorizontalOrigin.js";
 import LabelStyle from "../Scene/LabelStyle.js";
 import SceneMode from "../Scene/SceneMode.js";
-import Autolinker from "../ThirdParty/Autolinker.js";
-import Uri from "../ThirdParty/Uri.js";
-import zip from "../ThirdParty/zip.js";
+import Autolinker from "autolinker";
+import Uri from "urijs";
+import * as zip from "@zip.js/zip.js/lib/zip-no-worker.js";
 import getElement from "../Widgets/getElement.js";
 import BillboardGraphics from "./BillboardGraphics.js";
 import CompositePositionProperty from "./CompositePositionProperty.js";
@@ -421,14 +421,16 @@ function embedDataUris(div, elementType, attributeName, uriResolver) {
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
     const value = element.getAttribute(attributeName);
-    const relativeUri = new Uri(value);
-    const uri = relativeUri.absoluteTo(baseUri).toString();
-    const index = keys.indexOf(uri);
-    if (index !== -1) {
-      const key = keys[index];
-      element.setAttribute(attributeName, uriResolver[key]);
-      if (elementType === "a" && element.getAttribute("download") === null) {
-        element.setAttribute("download", key);
+    if (defined(value)) {
+      const relativeUri = new Uri(value);
+      const uri = relativeUri.absoluteTo(baseUri).toString();
+      const index = keys.indexOf(uri);
+      if (index !== -1) {
+        const key = keys[index];
+        element.setAttribute(attributeName, uriResolver[key]);
+        if (elementType === "a" && element.getAttribute("download") === null) {
+          element.setAttribute("download", key);
+        }
       }
     }
   }
@@ -440,7 +442,9 @@ function applyBasePath(div, elementType, attributeName, sourceResource) {
     const element = elements[i];
     const value = element.getAttribute(attributeName);
     const resource = resolveHref(value, sourceResource);
-    element.setAttribute(attributeName, resource.url);
+    if (defined(resource)) {
+      element.setAttribute(attributeName, resource.url);
+    }
   }
 }
 
@@ -906,8 +910,8 @@ function getIconHref(
     const ellipsoid = dataSource._ellipsoid;
     processNetworkLinkQueryString(
       hrefResource,
-      dataSource._camera,
-      dataSource._canvas,
+      dataSource.camera,
+      dataSource.canvas,
       viewBoundScale,
       dataSource._lastCameraView.bbox,
       ellipsoid
@@ -3087,6 +3091,13 @@ function processNetworkLink(dataSource, node, processingData, deferredLoading) {
           "viewRefreshMode",
           namespaces.kml
         );
+        if (viewRefreshMode === "onRegion") {
+          oneTimeWarning(
+            "kml-refrehMode-onRegion",
+            "KML - Unsupported viewRefreshMode: onRegion"
+          );
+          return;
+        }
         viewBoundScale = defaultValue(
           queryStringValue(link, "viewBoundScale", namespaces.kml),
           1.0
@@ -3110,8 +3121,8 @@ function processNetworkLink(dataSource, node, processingData, deferredLoading) {
         const ellipsoid = dataSource._ellipsoid;
         processNetworkLinkQueryString(
           href,
-          dataSource._camera,
-          dataSource._canvas,
+          dataSource.camera,
+          dataSource.canvas,
           viewBoundScale,
           dataSource._lastCameraView.bbox,
           ellipsoid
@@ -3234,7 +3245,7 @@ function processNetworkLink(dataSource, node, processingData, deferredLoading) {
                   "KML - refreshMode of onExpire requires the NetworkLinkControl to have an expires element"
                 );
               }
-            } else if (dataSource._camera) {
+            } else if (defined(dataSource.camera)) {
               // Only allow onStop refreshes if we have a camera
               networkLinkInfo.refreshMode = RefreshMode.STOP;
               networkLinkInfo.time = defaultValue(
@@ -3244,18 +3255,13 @@ function processNetworkLink(dataSource, node, processingData, deferredLoading) {
             } else {
               oneTimeWarning(
                 "kml-refrehMode-onStop-noCamera",
-                "A NetworkLink with viewRefreshMode=onStop requires a camera be passed in when creating the KmlDataSource"
+                "A NetworkLink with viewRefreshMode=onStop requires the `camera` property to be defined."
               );
             }
 
             if (defined(networkLinkInfo.refreshMode)) {
               dataSource._networkLinks.set(networkLinkInfo.id, networkLinkInfo);
             }
-          } else if (viewRefreshMode === "onRegion") {
-            oneTimeWarning(
-              "kml-refrehMode-onRegion",
-              "KML - Unsupported viewRefreshMode: onRegion"
-            );
           }
         })
         .catch(function (error) {
@@ -3543,19 +3549,36 @@ function load(dataSource, entityCollection, data, options) {
     });
 }
 
+// NOTE: LoadOptions properties are repeated in ConstructorOptions because some
+// tooling does not support "base types" for @typedef.  Remove if/when
+// https://github.com/microsoft/TypeScript/issues/20077 and/or
+// https://github.com/jsdoc/jsdoc/issues/1199 actually get resolved
 /**
  * @typedef {Object} KmlDataSource.LoadOptions
  *
  * Initialization options for the `load` method.
  *
- * @property {Camera} camera The camera that is used for viewRefreshModes and sending camera properties to network links.
- * @property {HTMLCanvasElement} canvas The canvas that is used for sending viewer properties to network links.
  * @property {String} [sourceUri] Overrides the url to use for resolving relative links and other KML network features.
  * @property {Boolean} [clampToGround=false] true if we want the geometry features (Polygons, LineStrings and LinearRings) clamped to the ground.
  * @property {Ellipsoid} [ellipsoid=Ellipsoid.WGS84] The global ellipsoid used for geographical calculations.
- * @property {Credit|String} [credit] A credit for the data source, which is displayed on the canvas.
  * @property {Element|String} [screenOverlayContainer] A container for ScreenOverlay images.
  */
+
+/**
+ * @typedef {Object} KmlDataSource.ConstructorOptions
+ *
+ * Options for constructing a new KmlDataSource, or calling the static `load` method.
+ *
+ * @property {Camera} [camera] The camera that is used for viewRefreshModes and sending camera properties to network links.
+ * @property {HTMLCanvasElement} [canvas] The canvas that is used for sending viewer properties to network links.
+ * @property {Credit|String} [credit] A credit for the data source, which is displayed on the canvas.
+ *
+ * @property {String} [sourceUri] Overrides the url to use for resolving relative links and other KML network features.
+ * @property {Boolean} [clampToGround=false] true if we want the geometry features (Polygons, LineStrings and LinearRings) clamped to the ground.
+ * @property {Ellipsoid} [ellipsoid=Ellipsoid.WGS84] The global ellipsoid used for geographical calculations.
+ * @property {Element|String} [screenOverlayContainer] A container for ScreenOverlay images.
+
+*/
 
 /**
  * A {@link DataSource} which processes Keyhole Markup Language 2.2 (KML).
@@ -3575,11 +3598,7 @@ function load(dataSource, entityCollection, data, options) {
  * @alias KmlDataSource
  * @constructor
  *
- * @param {Object} options An object with the following properties:
- * @param {Camera} options.camera The camera that is used for viewRefreshModes and sending camera properties to network links.
- * @param {HTMLCanvasElement} options.canvas The canvas that is used for sending viewer properties to network links.
- * @param {Ellipsoid} [options.ellipsoid=Ellipsoid.WGS84] The global ellipsoid used for geographical calculations.
- * @param {Credit|String} [options.credit] A credit for the data source, which is displayed on the canvas.
+ * @param {KmlDataSource.ConstructorOptions} [options] Object describing initialization options
  *
  * @see {@link http://www.opengeospatial.org/standards/kml/|Open Geospatial Consortium KML Standard}
  * @see {@link https://developers.google.com/kml/|Google KML Documentation}
@@ -3600,15 +3619,6 @@ function KmlDataSource(options) {
   const camera = options.camera;
   const canvas = options.canvas;
 
-  //>>includeStart('debug', pragmas.debug);
-  if (!defined(camera)) {
-    throw new DeveloperError("options.camera is required.");
-  }
-  if (!defined(canvas)) {
-    throw new DeveloperError("options.canvas is required.");
-  }
-  //>>includeEnd('debug');
-
   this._changed = new Event();
   this._error = new Event();
   this._loading = new Event();
@@ -3623,8 +3633,24 @@ function KmlDataSource(options) {
   this._networkLinks = new AssociativeArray();
   this._entityCluster = new EntityCluster();
 
-  this._canvas = canvas;
-  this._camera = camera;
+  /**
+   * The current size of this Canvas will be used to populate the Link parameters
+   * for client height and width.
+   *
+   * @type {HTMLCanvasElement | undefined}
+   */
+  this.canvas = canvas;
+
+  /**
+   * The position and orientation of this {@link Camera} will be used to
+   * populate various camera parameters when making network requests.
+   * Camera movement will determine when to trigger NetworkLink refresh if
+   * <code>viewRefreshMode</code> is <code>onStop</code>.
+   *
+   * @type {Camera | undefined}
+   */
+  this.camera = camera;
+
   this._lastCameraView = {
     position: defined(camera) ? Cartesian3.clone(camera.positionWC) : undefined,
     direction: defined(camera)
@@ -3657,7 +3683,7 @@ function KmlDataSource(options) {
  * Creates a Promise to a new instance loaded with the provided KML data.
  *
  * @param {Resource|String|Document|Blob} data A url, parsed KML document, or Blob containing binary KMZ data or a parsed KML document.
- * @param {KmlDataSource.LoadOptions} [options] An object specifying configuration options
+ * @param {KmlDataSource.ConstructorOptions} [options] An object specifying configuration options
  *
  * @returns {Promise.<KmlDataSource>} A promise that will resolve to a new KmlDataSource instance once the KML is loaded.
  */
@@ -3826,11 +3852,7 @@ Object.defineProperties(KmlDataSource.prototype, {
  * Asynchronously loads the provided KML data, replacing any existing data.
  *
  * @param {Resource|String|Document|Blob} data A url, parsed KML document, or Blob containing binary KMZ data or a parsed KML document.
- * @param {Object} [options] An object with the following properties:
- * @param {Resource|String} [options.sourceUri] Overrides the url to use for resolving relative links and other KML network features.
- * @param {Boolean} [options.clampToGround=false] true if we want the geometry features (Polygons, LineStrings and LinearRings) clamped to the ground. If true, lines will use corridors so use Entity.corridor instead of Entity.polyline.
- * @param {Ellipsoid} [options.ellipsoid=Ellipsoid.WGS84] The global ellipsoid used for geographical calculations.
- * @param {Element|String} [options.screenOverlayContainer] A container for ScreenOverlay images.
+ * @param {KmlDataSource.LoadOptions} [options] An object specifying configuration options
  *
  * @returns {Promise.<KmlDataSource>} A promise that will resolve to this instances once the KML is loaded.
  */
@@ -4131,7 +4153,7 @@ KmlDataSource.prototype.update = function (time) {
 
   let cameraViewUpdate = false;
   const lastCameraView = this._lastCameraView;
-  const camera = this._camera;
+  const camera = this.camera;
   if (
     defined(camera) &&
     !(
@@ -4200,8 +4222,8 @@ KmlDataSource.prototype.update = function (time) {
         const ellipsoid = defaultValue(that._ellipsoid, Ellipsoid.WGS84);
         processNetworkLinkQueryString(
           href,
-          that._camera,
-          that._canvas,
+          that.camera,
+          that.canvas,
           networkLink.viewBoundScale,
           lastCameraView.bbox,
           ellipsoid

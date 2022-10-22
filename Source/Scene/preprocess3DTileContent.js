@@ -24,7 +24,7 @@ import Cesium3DTileContentType from "./Cesium3DTileContentType.js";
  * @return {PreprocessedContent}
  * @private
  */
-export default function preprocess3DTileContent(arrayBuffer) {
+function preprocess3DTileContent(arrayBuffer) {
   const uint8Array = new Uint8Array(arrayBuffer);
   let contentType = getMagic(uint8Array);
 
@@ -61,9 +61,17 @@ export default function preprocess3DTileContent(arrayBuffer) {
   }
 
   if (defined(json.tileAvailability)) {
+    // Most likely a subtree JSON.
     return {
-      // Most likely a subtree JSON.
       contentType: Cesium3DTileContentType.IMPLICIT_SUBTREE_JSON,
+      jsonPayload: json,
+    };
+  }
+
+  if (defined(json.type)) {
+    // Most likely a GeoJSON
+    return {
+      contentType: Cesium3DTileContentType.GEOJSON,
       jsonPayload: json,
     };
   }
@@ -82,3 +90,5 @@ function getJsonContent(uint8Array) {
 
   return json;
 }
+
+export default preprocess3DTileContent;

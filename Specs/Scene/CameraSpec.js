@@ -1,26 +1,29 @@
-import { BoundingSphere } from "../../Source/Cesium.js";
-import { Cartesian2 } from "../../Source/Cesium.js";
-import { Cartesian3 } from "../../Source/Cesium.js";
-import { Cartesian4 } from "../../Source/Cesium.js";
-import { Cartographic } from "../../Source/Cesium.js";
-import { defaultValue } from "../../Source/Cesium.js";
-import { Ellipsoid } from "../../Source/Cesium.js";
-import { GeographicProjection } from "../../Source/Cesium.js";
-import { HeadingPitchRange } from "../../Source/Cesium.js";
+import {
+  BoundingSphere,
+  Cartesian2,
+  Cartesian3,
+  Cartesian4,
+  Cartographic,
+  defaultValue,
+  Ellipsoid,
+  GeographicProjection,
+  HeadingPitchRange,
+  Matrix3,
+  Matrix4,
+  OrthographicFrustum,
+  OrthographicOffCenterFrustum,
+  PerspectiveFrustum,
+  Rectangle,
+  Transforms,
+  WebMercatorProjection,
+  Camera,
+  CameraFlightPath,
+  MapMode2D,
+  SceneMode,
+  TweenCollection,
+} from "../../../Source/Cesium.js";
+
 import { Math as CesiumMath } from "../../Source/Cesium.js";
-import { Matrix3 } from "../../Source/Cesium.js";
-import { Matrix4 } from "../../Source/Cesium.js";
-import { OrthographicFrustum } from "../../Source/Cesium.js";
-import { OrthographicOffCenterFrustum } from "../../Source/Cesium.js";
-import { PerspectiveFrustum } from "../../Source/Cesium.js";
-import { Rectangle } from "../../Source/Cesium.js";
-import { Transforms } from "../../Source/Cesium.js";
-import { WebMercatorProjection } from "../../Source/Cesium.js";
-import { Camera } from "../../Source/Cesium.js";
-import { CameraFlightPath } from "../../Source/Cesium.js";
-import { MapMode2D } from "../../Source/Cesium.js";
-import { SceneMode } from "../../Source/Cesium.js";
-import { TweenCollection } from "../../Source/Cesium.js";
 
 describe("Scene/Camera", function () {
   let scene;
@@ -4148,6 +4151,36 @@ describe("Scene/Camera", function () {
         .mostRecent()
         .args[1].destination.equalsEpsilon(expectedDestination, 0.1)
     ).toBe(true);
+  });
+
+  it("flyTo rectangle with orientation", function () {
+    scene.mode = SceneMode.SCENE3D;
+
+    const direction = Cartesian3.negate(Cartesian3.UNIT_Z, new Cartesian3());
+    const up = Cartesian3.clone(Cartesian3.UNIT_Y);
+
+    const west = 0.3323436621771766;
+    const south = 0.8292930502744068;
+    const east = 0.3325710961342694;
+    const north = 0.8297059734014236;
+    const rectangle = new Rectangle(west, south, east, north);
+
+    const expectedDestination = camera.getRectangleCameraCoordinates(rectangle);
+    camera.flyTo({
+      destination: rectangle,
+      orientation: {
+        direction: direction,
+        up: up,
+      },
+      duration: 0.0,
+    });
+
+    expect(camera.direction).toEqualEpsilon(direction, CesiumMath.EPSILON6);
+    expect(camera.up).toEqualEpsilon(up, CesiumMath.EPSILON6);
+    expect(camera.position).toEqualEpsilon(
+      expectedDestination,
+      CesiumMath.EPSILON1
+    );
   });
 
   it("flyTo does not zoom closer than minimumZoomDistance", function () {

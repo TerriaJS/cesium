@@ -1,8 +1,8 @@
+import AlphaMode from "./AlphaMode.js";
 import Cartesian3 from "../Core/Cartesian3.js";
 import Cartesian4 from "../Core/Cartesian4.js";
 import Matrix3 from "../Core/Matrix3.js";
 import Matrix4 from "../Core/Matrix4.js";
-import AlphaMode from "./AlphaMode.js";
 
 /**
  * Components for building models.
@@ -34,6 +34,7 @@ function Quantization() {
    * Whether the oct-encoded values are stored as ZXY instead of XYZ. This is true when decoding from Draco.
    *
    * @type {Boolean}
+   * @private
    */
   this.octEncodedZXY = false;
 
@@ -242,12 +243,13 @@ function Attribute() {
   this.quantization = undefined;
 
   /**
-   * A typed array containing tightly-packed attribute values.
+   * A typed array containing tightly-packed attribute values, as they appear
+   * in the model file.
    *
    * @type {Uint8Array|Int8Array|Uint16Array|Int16Array|Uint32Array|Int32Array|Float32Array}
    * @private
    */
-  this.packedTypedArray = undefined;
+  this.typedArray = undefined;
 
   /**
    * A vertex buffer. Attribute values are accessed using byteOffset and byteStride.
@@ -256,14 +258,6 @@ function Attribute() {
    * @private
    */
   this.buffer = undefined;
-
-  /**
-   * A typed array containing vertex buffer data. Attribute values are accessed using byteOffset and byteStride.
-   *
-   * @type {Uint8Array}
-   * @private
-   */
-  this.typedArray = undefined;
 
   /**
    * The byte offset of elements in the buffer.
@@ -568,14 +562,6 @@ function Primitive() {
   this.morphTargets = [];
 
   /**
-   * An array of weights to be applied to morph targets.
-   *
-   * @type {Number[]}
-   * @private
-   */
-  this.morphWeights = [];
-
-  /**
    * The indices.
    *
    * @type {ModelComponents.Indices}
@@ -625,12 +611,21 @@ function Primitive() {
    * @private
    */
   this.propertyAttributeIds = [];
+
+  /**
+   * If the CESIUM_primitive_outline glTF extension is used, this property
+   * stores an additional attribute storing outline coordinates.
+   *
+   * @type {Attribute}
+   * @private
+   */
+  this.outlineCoordinates = undefined;
 }
 
 /**
  * Position and metadata information for instances of a node.
  *
- * @alias ModelComponents.Primitive
+ * @alias ModelComponents.Instances
  * @constructor
  *
  * @private
@@ -674,12 +669,21 @@ function Instances() {
  */
 function Skin() {
   /**
+   * The index of the skin in the glTF. This is useful for finding the skin
+   * that applies to a node after the skin is instantiated at runtime.
+   *
+   * @type {Number}
+   * @private
+   */
+  this.index = undefined;
+
+  /**
    * The joints.
    *
    * @type {ModelComponents.Node[]}
    * @private
    */
-  this.joints = undefined;
+  this.joints = [];
 
   /**
    * The inverse bind matrices of the joints.
@@ -687,7 +691,7 @@ function Skin() {
    * @type {Matrix4[]}
    * @private
    */
-  this.inverseBindMatrices = undefined;
+  this.inverseBindMatrices = [];
 }
 
 /**
@@ -699,6 +703,23 @@ function Skin() {
  * @private
  */
 function Node() {
+  /**
+   * The name of the node.
+   *
+   * @type {String}
+   * @private
+   */
+  this.name = undefined;
+
+  /**
+   * The index of the node in the glTF. This is useful for finding the nodes
+   * that belong to a skin after they have been instantiated at runtime.
+   *
+   * @type {Number}
+   * @private
+   */
+  this.index = undefined;
+
   /**
    * The children nodes.
    *
@@ -764,6 +785,24 @@ function Node() {
    * @private
    */
   this.scale = undefined;
+
+  /**
+   * An array of weights to be applied to the primitives' morph targets.
+   * These are supplied by either the node or its mesh.
+   *
+   * @type {Number[]}
+   * @private
+   */
+  this.morphWeights = [];
+
+  /**
+   * The name of the articulation affecting this node, as defined by the
+   * AGI_articulations extension.
+   *
+   * @type {String}
+   * @private
+   */
+  this.articulationName = undefined;
 }
 
 /**
@@ -782,6 +821,221 @@ function Scene() {
    * @private
    */
   this.nodes = [];
+}
+
+/**
+ * The property of the node that is targeted by an animation. The values of
+ * this enum are used to look up the appropriate property on the runtime node.
+ *
+ * @alias {ModelComponents.AnimatedPropertyType}
+ * @enum {String}
+ *
+ * @private
+ */
+const AnimatedPropertyType = {
+  TRANSLATION: "translation",
+  ROTATION: "rotation",
+  SCALE: "scale",
+  WEIGHTS: "weights",
+};
+
+/**
+ * An animation sampler that describes the sources of animated keyframe data
+ * and their interpolation.
+ *
+ * @alias {ModelComponents.AnimationSampler}
+ * @constructor
+ *
+ * @private
+ */
+function AnimationSampler() {
+  /**
+   * The timesteps of the animation.
+   *
+   * @type {Number[]}
+   * @private
+   */
+  this.input = [];
+
+  /**
+   * The method used to interpolate between the animation's keyframe data.
+   *
+   * @type {InterpolationType}
+   * @private
+   */
+  this.interpolation = undefined;
+
+  /**
+   * The keyframe data of the animation.
+   *
+   * @type {Number[]|Cartesian3[]|Quaternion[]}
+   * @private
+   */
+  this.output = [];
+}
+
+/**
+ * An animation target, which specifies the node and property to animate.
+ *
+ * @alias {ModelComponents.AnimationTarget}
+ * @constructor
+ *
+ * @private
+ */
+function AnimationTarget() {
+  /**
+   * The node that will be affected by the animation.
+   *
+   * @type {ModelComponents.Node}
+   * @private
+   */
+  this.node = undefined;
+
+  /**
+   * The property of the node to be animated.
+   *
+   * @type {ModelComponents.AnimatedPropertyType}
+   * @private
+   */
+  this.path = undefined;
+}
+
+/**
+ * An animation channel linking an animation sampler and the target it animates.
+ *
+ * @alias {ModelComponents.AnimationChannel}
+ * @constructor
+ *
+ * @private
+ */
+function AnimationChannel() {
+  /**
+   * The sampler used as the source of the animation data.
+   *
+   * @type {ModelComponents.AnimationSampler}
+   * @private
+   */
+  this.sampler = undefined;
+
+  /**
+   * The target of the animation.
+   *
+   * @type {ModelComponents.AnimationTarget}
+   * @private
+   */
+  this.target = undefined;
+}
+
+/**
+ * An animation in the model.
+ *
+ * @alias {ModelComponents.Animation}
+ * @constructor
+ *
+ * @private
+ */
+function Animation() {
+  /**
+   * The name of the animation.
+   *
+   * @type {String}
+   * @private
+   */
+  this.name = undefined;
+
+  /**
+   * The samplers used in this animation.
+   *
+   * @type {ModelComponents.AnimationSampler[]}
+   * @private
+   */
+  this.samplers = [];
+
+  /**
+   * The channels used in this animation.
+   *
+   * @type {ModelComponents.AnimationChannel[]}
+   * @private
+   */
+  this.channels = [];
+}
+
+/**
+ * An articulation stage belonging to an articulation from the
+ * AGI_articulations extension.
+ *
+ * @alias {ModelComponents.ArticulationStage}
+ * @constructor
+ *
+ * @private
+ */
+function ArticulationStage() {
+  /**
+   * The name of the articulation stage.
+   *
+   * @type {String}
+   * @private
+   */
+  this.name = undefined;
+
+  /**
+   * The type of the articulation stage, defined by the type of motion it modifies.
+   *
+   * @type {ArticulationStageType}
+   * @private
+   */
+  this.type = undefined;
+
+  /**
+   * The minimum value for the range of motion of this articulation stage.
+   *
+   * @type {Number}
+   * @private
+   */
+  this.minimumValue = undefined;
+
+  /**
+   * The maximum value for the range of motion of this articulation stage.
+   *
+   * @type {Number}
+   * @private
+   */
+  this.maximumValue = undefined;
+
+  /**
+   * The initial value for this articulation stage.
+   *
+   * @type {Number}
+   * @private
+   */
+  this.initialValue = undefined;
+}
+
+/**
+ * An articulation for the model, as defined by the AGI_articulations extension.
+ *
+ * @alias {ModelComponents.Articulation}
+ * @constructor
+ *
+ * @private
+ */
+function Articulation() {
+  /**
+   * The name of the articulation.
+   *
+   * @type {String}
+   * @private
+   */
+  this.name = undefined;
+
+  /**
+   * The stages belonging to this articulation. The stages are applied to
+   * the model in order of appearance.
+   *
+   * @type {ModelComponents.ArticulationStage[]}
+   * @private
+   */
+  this.stages = [];
 }
 
 /**
@@ -832,7 +1086,28 @@ function Components() {
    *
    * @type {ModelComponents.Node[]}
    */
-  this.nodes = undefined;
+  this.nodes = [];
+
+  /**
+   * All skins in the model.
+   *
+   * @type {ModelComponents.Skin[]}
+   */
+  this.skins = [];
+
+  /**
+   * All animations in the model.
+   *
+   * @type {ModelComponents.Animation[]}
+   */
+  this.animations = [];
+
+  /**
+   * All articulations in the model as defined by the AGI_articulations extension.
+   *
+   * @type {ModelComponents.Articulation[]}
+   */
+  this.articulations = [];
 
   /**
    * Structural metadata containing the schema, property tables, property
@@ -993,7 +1268,7 @@ MetallicRoughness.DEFAULT_ROUGHNESS_FACTOR = 1.0;
 /**
  * Material properties for the PBR specular glossiness shading model.
  *
- * @alias ModelComponents.function SpecularGlossiness
+ * @alias ModelComponents.SpecularGlossiness
  * @constructor
  *
  * @private
@@ -1174,6 +1449,13 @@ ModelComponents.Instances = Instances;
 ModelComponents.Skin = Skin;
 ModelComponents.Node = Node;
 ModelComponents.Scene = Scene;
+ModelComponents.AnimatedPropertyType = Object.freeze(AnimatedPropertyType);
+ModelComponents.AnimationSampler = AnimationSampler;
+ModelComponents.AnimationTarget = AnimationTarget;
+ModelComponents.AnimationChannel = AnimationChannel;
+ModelComponents.Animation = Animation;
+ModelComponents.ArticulationStage = ArticulationStage;
+ModelComponents.Articulation = Articulation;
 ModelComponents.Asset = Asset;
 ModelComponents.Components = Components;
 ModelComponents.TextureReader = TextureReader;

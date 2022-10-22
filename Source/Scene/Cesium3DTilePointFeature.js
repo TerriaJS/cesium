@@ -32,11 +32,11 @@ import createBillboardPointCallback from "./createBillboardPointCallback.js";
  * handler.setInputAction(function(movement) {
  *     const feature = scene.pick(movement.endPosition);
  *     if (feature instanceof Cesium.Cesium3DTilePointFeature) {
- *         const propertyNames = feature.getPropertyNames();
- *         const length = propertyNames.length;
+ *         const propertyIds = feature.getPropertyIds();
+ *         const length = propertyIds.length;
  *         for (let i = 0; i < length; ++i) {
- *             const propertyName = propertyNames[i];
- *             console.log(propertyName + ': ' + feature.getProperty(propertyName));
+ *             const propertyId = propertyIds[i];
+ *             console.log(`{propertyId}: ${feature.getProperty(propertyId)}`);
  *         }
  *     }
  * }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -727,16 +727,16 @@ Cesium3DTilePointFeature.prototype.hasProperty = function (name) {
 };
 
 /**
- * Returns an array of property names for the feature. This includes properties from this feature's
+ * Returns an array of property IDs for the feature. This includes properties from this feature's
  * class and inherited classes when using a batch table hierarchy.
  *
  * @see {@link https://github.com/CesiumGS/3d-tiles/tree/main/extensions/3DTILES_batch_table_hierarchy}
  *
  * @param {String[]} [results] An array into which to store the results.
- * @returns {String[]} The names of the feature's properties.
+ * @returns {String[]} The IDs of the feature's properties.
  */
-Cesium3DTilePointFeature.prototype.getPropertyNames = function (results) {
-  return this._content.batchTable.getPropertyNames(this._batchId, results);
+Cesium3DTilePointFeature.prototype.getPropertyIds = function (results) {
+  return this._content.batchTable.getPropertyIds(this._batchId, results);
 };
 
 /**
@@ -750,11 +750,11 @@ Cesium3DTilePointFeature.prototype.getPropertyNames = function (results) {
  *
  * @example
  * // Display all the properties for a feature in the console log.
- * const propertyNames = feature.getPropertyNames();
- * const length = propertyNames.length;
+ * const propertyIds = feature.getPropertyIds();
+ * const length = propertyIds.length;
  * for (let i = 0; i < length; ++i) {
- *     const propertyName = propertyNames[i];
- *     console.log(propertyName + ': ' + feature.getProperty(propertyName));
+ *     const propertyId = propertyIds[i];
+ *     console.log(`{propertyId} : ${feature.getProperty(propertyId)}`);
  * }
  */
 Cesium3DTilePointFeature.prototype.getProperty = function (name) {

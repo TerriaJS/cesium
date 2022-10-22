@@ -1,18 +1,21 @@
-import { appendForwardSlash } from "../../Source/Cesium.js";
-import { defined } from "../../Source/Cesium.js";
-import { queryToObject } from "../../Source/Cesium.js";
-import { RequestScheduler } from "../../Source/Cesium.js";
-import { Resource } from "../../Source/Cesium.js";
-import { WebMercatorTilingScheme } from "../../Source/Cesium.js";
-import { BingMapsImageryProvider } from "../../Source/Cesium.js";
-import { BingMapsStyle } from "../../Source/Cesium.js";
-import { DiscardEmptyTileImagePolicy } from "../../Source/Cesium.js";
-import { Imagery } from "../../Source/Cesium.js";
-import { ImageryLayer } from "../../Source/Cesium.js";
-import { ImageryProvider } from "../../Source/Cesium.js";
-import { ImageryState } from "../../Source/Cesium.js";
+import Uri from "urijs";
+import {
+  appendForwardSlash,
+  BingMapsImageryProvider,
+  BingMapsStyle,
+  defined,
+  DiscardEmptyTileImagePolicy,
+  Imagery,
+  ImageryLayer,
+  ImageryProvider,
+  ImageryState,
+  queryToObject,
+  RequestScheduler,
+  Resource,
+  WebMercatorTilingScheme,
+} from "../../../Source/Cesium.js";
+
 import pollToPromise from "../pollToPromise.js";
-import { Uri } from "../../Source/Cesium.js";
 
 describe("Scene/BingMapsImageryProvider", function () {
   let supportsImageBitmapOptions;
