@@ -925,7 +925,7 @@ export async function deployStatus() {
   const npmUrl = `${deployUrl}cesium-${version}.tgz`;
   const coverageUrl = `${
     travisDeployUrl + process.env.TRAVIS_BRANCH
-  }/Build/Coverage/index.html`;
+    }/Build/Coverage/index.html`;
 
   return Promise.all([
     setStatus(status, deployUrl, message, "deployment"),
@@ -1488,7 +1488,7 @@ function buildSandcastle() {
       gulpReplace(
         '    <script type="module" src="../load-cesium-es6.js"></script>',
         '    <script src="../../../Build/CesiumUnminified/Cesium.js"></script>\n' +
-          '    <script>window.CESIUM_BASE_URL = "../../../Build/CesiumUnminified/";</script>";'
+        '    <script>window.CESIUM_BASE_URL = "../../../Build/CesiumUnminified/";</script>";'
       )
     )
     // Fix relative paths for new location
@@ -1512,7 +1512,7 @@ function buildSandcastle() {
       gulpReplace(
         '    <script type="module" src="load-cesium-es6.js"></script>',
         '    <script src="../../Build/CesiumUnminified/Cesium.js"></script>\n' +
-          '    <script>window.CESIUM_BASE_URL = "../../Build/CesiumUnminified/";</script>";'
+        '    <script>window.CESIUM_BASE_URL = "../../Build/CesiumUnminified/";</script>";'
       )
     )
     .pipe(gulpReplace("../../Build", "../.."))
@@ -1612,6 +1612,40 @@ export function terriaCopyCesiumAssets() {
     .pipe(gulp.dest("wwwroot/build/"));
 }
 
-export const terriaPrepareCesium = gulp.series(prepare, () => glslToJavaScript(true, "Build/minifyShaders.state"), terriaCopyCesiumAssets, buildTs);
+export function terriaCopyWorkers() {
+  return gulp.src([
+    "Build/CesiumUnminified/Workers/**",
+    "!Build/CesiumUnminified/Workers/cesiumWorkerBootstrapper.js",
+    "!Build/CesiumUnminified/Workers/transferTypedArrayTest.js",
+    "!Build/CesiumUnminified/Workers/package.json",
+  ], { base: "Build/CesiumUnminified" }).pipe(gulp.dest("Source"));
+}
+
+export async function terriaCleanWorkers() {
+  globbySync([
+    "Source/Workers/**",
+    "!Source/Workers/cesiumWorkerBootstrapper.js",
+    "!Source/Workers/transferTypedArrayTest.js",
+    "!Source/Workers/package.json"
+  ])
+  .forEach(function (file) {
+    rimraf.sync(file);
+  });
+}
+
+export const terriaPrepareCesium = gulp.series(
+  prepare,
+  () => glslToJavaScript(true, "Build/minifyShaders.state"),
+  terriaCleanWorkers,
+  () => buildWorkers({
+    minify: false,
+    sourcemap: false,
+    path: "Build/CesiumUnminified",
+    removePragmas: false,
+  }),
+  terriaCopyWorkers,
+  terriaCopyCesiumAssets,
+  buildTs
+);
 
 export const terriaDefault = gulp.series(terriaPrepareCesium);
