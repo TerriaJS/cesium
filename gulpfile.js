@@ -1623,6 +1623,10 @@ export function terriaCopyWorkers() {
 
 export async function terriaCleanWorkers() {
   globbySync([
+    "Build/CesiumUnminified/Workers/**",
+    "!Build/CesiumUnminified/Workers/cesiumWorkerBootstrapper.js",
+    "!Build/CesiumUnminified/Workers/transferTypedArrayTest.js",
+    "!Build/CesiumUnminified/Workers/package.json",
     "Source/Workers/**",
     "!Source/Workers/cesiumWorkerBootstrapper.js",
     "!Source/Workers/transferTypedArrayTest.js",
