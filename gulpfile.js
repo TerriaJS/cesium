@@ -1254,7 +1254,7 @@ function createTypeScriptDefinitions() {
   // The next step is to find the list of Cesium modules exported by the Cesium API
   // So that we can map these modules with a link back to their original source file.
 
-  const regex = /^declare (function|class|namespace|enum) (.+)/gm;
+  const regex = /^declare (function|class|namespace|enum|const enum) (.+)/gm;
   let matches;
   const publicModules = new Set();
   //eslint-disable-next-line no-cond-assign

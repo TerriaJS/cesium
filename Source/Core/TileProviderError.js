@@ -151,10 +151,6 @@ TileProviderError.reportError = function (
     );
   }
 
-  if (error.retry && defined(retryFunction)) {
-    retryFunction(Promise.resolve(error.retry));
-  }
-
   return error;
 };
 
