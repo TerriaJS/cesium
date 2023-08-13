@@ -1,5 +1,9 @@
 # Change Log
 
+### terriajs-cesium only
+
+- Added `token` property to `ArcGisMapServerImageryProvider.ConstructorOptions`.
+
 ### 1.108 - 2023-08-01
 
 #### Major Announcements :loudspeaker:

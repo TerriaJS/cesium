@@ -57,8 +57,7 @@ import DeveloperError from "../Core/DeveloperError.js";
  * @property {number} [tileHeight=256] The height of each tile in pixels.  This parameter is ignored when accessing a tiled server.
  * @property {number} [maximumLevel] The maximum tile level to request, or undefined if there is no maximum.  This parameter is ignored when accessing
  *                                        a tiled server.
- *
- *
+ * @property {string} [token] The ArcGIS access token to use to access the service.
  */
 
 /**
@@ -260,9 +259,9 @@ async function requestMetadata(resource, imageryProviderBuilder) {
  *
  * Provides tiled imagery hosted by an ArcGIS MapServer.  By default, the server's pre-cached tiles are
  * used, if available.
- * 
+ *
  * <br/>
- * 
+ *
  * An {@link https://developers.arcgis.com/documentation/mapping-apis-and-services/security| ArcGIS Access Token } is required to authenticate requests to an ArcGIS Image Tile service.
  * To access secure ArcGIS resources, it's required to create an ArcGIS developer
  * account or an ArcGIS online account, then implement an authentication method to obtain an access token.
@@ -278,7 +277,7 @@ async function requestMetadata(resource, imageryProviderBuilder) {
  * @example
  * // Set the default access token for accessing ArcGIS Image Tile service
  * Cesium.ArcGisMapService.defaultAccessToken = "<ArcGIS Access Token>";
- * 
+ *
  * // Add a base layer from a default ArcGIS basemap
  * const viewer = new Cesium.Viewer("cesiumContainer", {
  *   baseLayer: Cesium.ImageryLayer.fromProviderAsync(
