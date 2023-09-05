@@ -50,6 +50,25 @@
     "./Source/Workers/*",
     "./Specs/**/*"
   ],
+  "files": [
+    "Build/Cesium/",
+    "Build/CesiumUnminified/",
+    "Build/package.json",
+    "Source/Assets/",
+    "Source/ThirdParty/",
+    "Source/Widgets/",
+    "Source/Cesium.d.ts",
+    "Source/Cesium.js",
+    "CHANGES.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTORS.md",
+    "LICENSE.md",
+    "README.md",
+    "ThirdParty.extra.json",
+    "ThirdParty.json",
+    "index.cjs"
+  ],
   "dependencies": {
     "@cesium/engine": "^3.0.2",
     "@cesium/widgets": "^3.0.2"
