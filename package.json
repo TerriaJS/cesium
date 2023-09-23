@@ -51,8 +51,8 @@
     "./Specs/**/*"
   ],
   "dependencies": {
-    "@cesium/engine": "^23.0.0",
-    "@cesium/widgets": "^14.4.0"
+    "@cesium/engine": "file:packages/engine",
+    "@cesium/widgets": "file:packages/widgets"
   },
   "devDependencies": {
     "@cesium/eslint-config": "^13.0.0",
