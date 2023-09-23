@@ -51,8 +51,8 @@
     "./Specs/**/*"
   ],
   "dependencies": {
-    "@cesium/engine": "^26.3.0",
-    "@cesium/widgets": "^16.2.0",
+    "@cesium/engine": "file:./packages/engine",
+    "@cesium/widgets": "file:./packages/widgets",
     "protobufjs": "^8.8.0"
   },
   "devDependencies": {
