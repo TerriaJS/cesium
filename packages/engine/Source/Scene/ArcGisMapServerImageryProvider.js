@@ -20,6 +20,7 @@ import ImageryLayerFeatureInfo from "./ImageryLayerFeatureInfo.js";
 import ImageryProvider from "./ImageryProvider.js";
 import ArcGisBaseMapType from "./ArcGisBaseMapType.js";
 import DeveloperError from "../Core/DeveloperError.js";
+import objectToQuery from "../Core/objectToQuery.js";
 
 /**
  * @typedef {object} ArcGisMapServerImageryProvider.ConstructorOptions
@@ -57,8 +58,11 @@ import DeveloperError from "../Core/DeveloperError.js";
  * @property {number} [tileHeight=256] The height of each tile in pixels.  This parameter is ignored when accessing a tiled server.
  * @property {number} [maximumLevel] The maximum tile level to request, or undefined if there is no maximum.  This parameter is ignored when accessing
  *                                        a tiled server.
- *
- *
+ * @property {string} [token] The ArcGIS access token to use to access the service.
+ * @property {Object} [mapServerData] This MapServer's metadata.  This can be supplied to prevent the imagery provider from making an extraneous
+ *                                    request when the application already has the metadata.
+ * @property {Object} [parameters=ArcGisMapServerImageryProvider.DefaultParameters] Additional parameters
+ *                    to pass to the ArcGIS server in tile requests and feature picking.
  */
 
 /**
@@ -90,6 +94,9 @@ function ImageryProviderBuilder(options) {
   this.tileWidth = options.tileWidth ?? 256;
   this.tileHeight = options.tileHeight ?? 256;
   this.maximumLevel = options.maximumLevel;
+  this.token = options.token;
+  this.mapServerData = options.mapServerData;
+  this.parameters = options.parameters;
 }
 
 /**
@@ -322,6 +329,10 @@ function ArcGisMapServerImageryProvider(options) {
   this._useTiles = options.usePreCachedTilesIfAvailable ?? true;
   this._rectangle = options.rectangle ?? this._tilingScheme.rectangle;
   this._layers = options.layers;
+  this._parameters = {
+    ...ArcGisMapServerImageryProvider.DefaultParameters,
+    ...(options.parameters ?? {}),
+  };
   this._credit = options.credit;
   this._tileCredits = undefined;
 
@@ -442,8 +453,12 @@ ArcGisMapServerImageryProvider.fromBasemapType = async function (
 function buildImageResource(imageryProvider, x, y, level, request) {
   let resource;
   if (imageryProvider._useTiles) {
+    const query =
+      Object.keys(imageryProvider.parameters).length > 0
+        ? `?${objectToQuery(imageryProvider.parameters)}`
+        : "";
     resource = imageryProvider._resource.getDerivedResource({
-      url: `tile/${level}/${y}/${x}`,
+      url: `tile/${level}/${y}/${x}${query}`,
       request: request,
     });
   } else {
@@ -457,6 +472,7 @@ function buildImageResource(imageryProvider, x, y, level, request) {
       format: "png32",
       transparent: true,
       f: "image",
+      ...imageryProvider.parameters,
     };
 
     if (
@@ -675,6 +691,19 @@ Object.defineProperties(ArcGisMapServerImageryProvider.prototype, {
       return this._layers;
     },
   },
+
+  /**
+   * Gets the additional parameters to pass to the ArcGIS server in tile requests and feature picking.
+   * @memberof ArcGisMapServerImageryProvider.prototype
+   *
+   * @type {Object}
+   * @readonly
+   */
+  parameters: {
+    get: function () {
+      return this._parameters;
+    },
+  },
 });
 
 /**
@@ -713,7 +742,13 @@ ArcGisMapServerImageryProvider.fromUrl = async function (url, options) {
   provider._resource = resource;
   const imageryProviderBuilder = new ImageryProviderBuilder(options);
   const useTiles = options.usePreCachedTilesIfAvailable ?? true;
-  if (useTiles) {
+  if (defined(options.mapServerData)) {
+    // Even if we already have the map server data, we defer processing it in case there are
+    // errors.  Clients must have a chance to subscribe to the errorEvent before we raise it.
+    Promise.resolve(options.mapServerData)
+      .then((data) => metadataSuccess(data, imageryProviderBuilder))
+      .catch((error) => metadataFailure(resource, error));
+  } else if (useTiles) {
     await requestMetadata(resource, imageryProviderBuilder);
   }
 
@@ -816,6 +851,7 @@ ArcGisMapServerImageryProvider.prototype.pickFeatures = function (
     imageDisplay: `${this._tileWidth},${this._tileHeight},96`,
     sr: sr,
     layers: layers,
+    ...this.parameters,
   };
 
   const resource = this._resource.getDerivedResource({
