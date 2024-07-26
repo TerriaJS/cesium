@@ -3,6 +3,7 @@
 ### terriajs-cesium only
 
 - Added `token`, `mapServerData`, and `parameters` properties to `ArcGisMapServerImageryProvider.ConstructorOptions`.
+- Added split terrain feature.
 
 ## 1.134.1 - 2025-10-10
 

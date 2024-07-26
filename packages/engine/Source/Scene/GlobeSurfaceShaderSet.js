@@ -8,6 +8,7 @@ import SceneMode from "./SceneMode.js";
 function GlobeSurfaceShader(
   numberOfDayTextures,
   flags,
+  flags2,
   material,
   shaderProgram,
   clippingShaderState,
@@ -15,6 +16,7 @@ function GlobeSurfaceShader(
 ) {
   this.numberOfDayTextures = numberOfDayTextures;
   this.flags = flags;
+  this.flags2 = flags2;
   this.material = material;
   this.shaderProgram = shaderProgram;
   this.clippingShaderState = clippingShaderState;
@@ -134,6 +136,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
   const hasExaggeration = options.hasExaggeration;
   const showUndergroundColor = options.showUndergroundColor;
   const translucent = options.translucent;
+  const splitTerrain = options.splitTerrain;
 
   let quantization = 0;
   let quantizationDefine = "";
@@ -192,8 +195,10 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
     (hasGeodeticSurfaceNormals << 28) |
     (hasExaggeration << 29) |
     (showUndergroundColor << 30) |
-    (translucent << 31) |
-    (applyDayNightAlpha << 32);
+    (translucent << 31);
+
+  // More bit flags that don't fit in the first `flag`
+  const flags2 = applyDayNightAlpha | (splitTerrain << 2);
 
   let currentClippingShaderState = 0;
   if (defined(clippingPlanes) && clippingPlanes.length > 0) {
@@ -214,6 +219,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
     defined(surfaceShader) &&
     surfaceShader.numberOfDayTextures === numberOfDayTextures &&
     surfaceShader.flags === flags &&
+    surfaceShader.flags2 === flags2 &&
     surfaceShader.material === this.material &&
     surfaceShader.clippingShaderState === currentClippingShaderState &&
     surfaceShader.clippingPolygonShaderState ===
@@ -228,7 +234,12 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
     shadersByFlags = this._shadersByTexturesFlags[numberOfDayTextures] = [];
   }
 
-  surfaceShader = shadersByFlags[flags];
+  let shadersByFlags2 = shadersByFlags[flags];
+  if (!defined(shadersByFlags2)) {
+    shadersByFlags2 = shadersByFlags[flags2] = [];
+  }
+
+  surfaceShader = shadersByFlags2[flags2];
   if (
     !defined(surfaceShader) ||
     surfaceShader.material !== this.material ||
@@ -378,6 +389,10 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
       vs.defines.push("EXAGGERATION");
     }
 
+    if (splitTerrain) {
+      fs.defines.push("SPLIT_TERRAIN");
+    }
+
     let computeDayColor =
       "\
     vec4 computeDayColor(vec4 initialColor, vec3 textureCoordinates, float nightBlend)\n\
@@ -443,14 +458,17 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
       attributeLocations: terrainEncoding.getAttributeLocations(),
     });
 
-    surfaceShader = shadersByFlags[flags] = new GlobeSurfaceShader(
+    surfaceShader = new GlobeSurfaceShader(
       numberOfDayTextures,
       flags,
+      flags2,
       this.material,
       shader,
       currentClippingShaderState,
       currentClippingPolygonsShaderState,
     );
+
+    shadersByFlags2[flags2] = surfaceShader;
   }
 
   surfaceTile.surfaceShader = surfaceShader;
@@ -458,7 +476,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
 };
 
 GlobeSurfaceShaderSet.prototype.destroy = function () {
-  let flags;
+  let flags, flags2;
   let shader;
 
   const shadersByTexturesFlags = this._shadersByTexturesFlags;
@@ -471,9 +489,14 @@ GlobeSurfaceShaderSet.prototype.destroy = function () {
 
       for (flags in shadersByFlags) {
         if (shadersByFlags.hasOwnProperty(flags)) {
-          shader = shadersByFlags[flags];
-          if (defined(shader)) {
-            shader.shaderProgram.destroy();
+          const shadersByFlags2 = shadersByFlags[flags];
+          for (flags2 in shadersByFlags2) {
+            if (shadersByFlags2.hasOwnProperty(flags2)) {
+              shader = shadersByFlags2[flags2];
+              if (defined(shader)) {
+                shader.shaderProgram.destroy();
+              }
+            }
           }
         }
       }
