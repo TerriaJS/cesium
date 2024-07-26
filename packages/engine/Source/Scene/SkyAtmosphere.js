@@ -21,6 +21,7 @@ import Axis from "./Axis.js";
 import BlendingState from "./BlendingState.js";
 import CullFace from "./CullFace.js";
 import SceneMode from "./SceneMode.js";
+import SplitDirection from "./SplitDirection.js";
 
 /**
  * An atmosphere drawn around the limb of the provided ellipsoid. Based on
@@ -153,6 +154,16 @@ function SkyAtmosphere(ellipsoid) {
    */
   this.brightnessShift = 0.0;
 
+  /**
+   * The {@link SplitDirection} to apply, showing the atmosphere only on
+   * the left or right of the splitter control.
+   *
+   * @type {SplitDirection}
+   * @default {@link SplitDirection.NONE}
+   */
+  this.splitDirection = SplitDirection.NONE;
+  this._splitDirection = undefined;
+
   this._hueSaturationBrightness = new Cartesian3();
 
   // outer radius, inner radius, dynamic atmosphere color flag
@@ -196,6 +207,9 @@ function SkyAtmosphere(ellipsoid) {
     },
     u_atmosphereMieAnisotropy: function () {
       return that.atmosphereMieAnisotropy;
+    },
+    u_splitDirection: function () {
+      return that.splitDirection;
     },
   };
 }
@@ -298,8 +312,13 @@ SkyAtmosphere.prototype.update = function (frameState, globe) {
     });
   }
 
+  // Note that the splitDirection flag requires _two_ bits.
+  const splitDirectionFlag =
+    this.splitDirection === 0 ? 0 : this.splitDirection < 0.0 ? 1 : 2;
+
   const flags =
-    colorCorrect | (perFragmentAtmosphere << 2) | (translucent << 3);
+    colorCorrect | (perFragmentAtmosphere << 2) | (translucent << 3) ||
+    splitDirectionFlag << 4;
 
   if (flags !== this._flags) {
     this._flags = flags;
@@ -316,6 +335,10 @@ SkyAtmosphere.prototype.update = function (frameState, globe) {
 
     if (translucent) {
       defines.push("GLOBE_TRANSLUCENT");
+    }
+
+    if (this.splitDirection !== SplitDirection.NONE) {
+      defines.push("SPLIT_ATMOSPHERE");
     }
 
     const vs = new ShaderSource({
