@@ -51,8 +51,8 @@
     "./Specs/**/*"
   ],
   "dependencies": {
-    "@cesium/engine": "^22.3.0",
-    "@cesium/widgets": "^14.3.0"
+    "@cesium/engine": "npm:terriajs-cesium@^22.3.0",
+    "@cesium/widgets": "npm:terriajs-cesium-widgets@^14.3.0"
   },
   "devDependencies": {
     "@cesium/eslint-config": "^13.0.0",
