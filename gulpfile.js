@@ -355,38 +355,40 @@ async function clocSource() {
 export async function prepare() {
   // Copy Draco3D files from node_modules into Source
   copyFileSync(
-    "node_modules/draco3d/draco_decoder.wasm",
+    require.resolve("draco3d/draco_decoder.wasm"),
     "packages/engine/Source/ThirdParty/draco_decoder.wasm",
   );
   // Copy Gaussian Splatting utilities into Source
   copyFileSync(
-    "node_modules/@cesium/wasm-splats/wasm_splats_bg.wasm",
+    require.resolve("@cesium/wasm-splats/wasm_splats_bg.wasm"),
     "packages/engine/Source/ThirdParty/wasm_splats_bg.wasm",
   );
   // Copy zip.js worker and wasm files to Source/ThirdParty
   copyFileSync(
-    "node_modules/@zip.js/zip.js/dist/zip-web-worker.js",
+    require.resolve("@zip.js/zip.js/dist/zip-web-worker.js"),
     "packages/engine/Source/ThirdParty/Workers/zip-web-worker.js",
   );
   copyFileSync(
-    "node_modules/@zip.js/zip.js/dist/zip-module.wasm",
+    require.resolve("@zip.js/zip.js/dist/zip-module.wasm"),
     "packages/engine/Source/ThirdParty/zip-module.wasm",
   );
 
   // Copy prism.js and prism.css files into Tools
   copyFileSync(
-    "node_modules/prismjs/prism.js",
+    require.resolve("prismjs/prism.js"),
     "Tools/jsdoc/cesium_template/static/javascript/prism.js",
   );
   copyFileSync(
-    "node_modules/prismjs/themes/prism.min.css",
+    require.resolve("prismjs/themes/prism.min.css"),
     "Tools/jsdoc/cesium_template/static/styles/prism.css",
   );
 
   // Copy jasmine runner files into Specs
   const files = await globby([
-    "node_modules/jasmine-core/lib/jasmine-core",
-    "!node_modules/jasmine-core/lib/jasmine-core/example",
+    dirname(require.resolve("jasmine-core/lib/jasmine-core/jasmine.js")),
+    `!${dirname(
+      dirname("jasmine-core/lib/jasmine-core/example/src/Player.js"),
+    )}`,
   ]);
 
   const stream = gulp.src(files).pipe(gulp.dest("Specs/jasmine"));
@@ -1158,6 +1160,7 @@ export async function test() {
  * @returns
  */
 function generateTypeScriptDefinitions(
+  //eslint-disable-next-line no-unused-vars
   workspaceName,
   definitionsPath,
   configurationPath,
@@ -1209,7 +1212,7 @@ function generateTypeScriptDefinitions(
     .replace(/<Boolean>/gm, "<boolean>")
     .replace(/<Object>/gm, "<object>")
     .replace(
-      /= "WebGLConstants\.(.+)"/gm,
+      /[=] "WebGLConstants\.(.+)"/gm,
       // eslint-disable-next-line no-unused-vars
       (match, p1) => `= WebGLConstants.${p1}`,
     )
@@ -1423,7 +1426,7 @@ function createTypeScriptDefinitions() {
     .replace(/<Boolean>/gm, "<boolean>")
     .replace(/<Object>/gm, "<object>")
     .replace(
-      /= "WebGLConstants\.(.+)"/gm,
+      /[=] "WebGLConstants\.(.+)"/gm,
       // eslint-disable-next-line no-unused-vars
       (match, p1) => `= WebGLConstants.${p1}`,
     )
