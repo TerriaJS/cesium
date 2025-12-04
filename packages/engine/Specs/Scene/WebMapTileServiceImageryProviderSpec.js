@@ -6,9 +6,11 @@ import {
   GeographicTilingScheme,
   Imagery,
   ImageryLayer,
+  ImageryLayerFeatureInfo,
   ImageryProvider,
   ImageryState,
   JulianDate,
+  GetFeatureInfoFormat,
   objectToQuery,
   queryToObject,
   Request,
@@ -295,9 +297,10 @@ describe("Scene/WebMapTileServiceImageryProvider", function () {
     expect(provider.proxy).toBeUndefined();
   });
 
-  // non default parameters values
   it("uses parameters passed to constructor", function () {
-    const tilingScheme = new GeographicTilingScheme();
+    const tilingScheme = new GeographicTilingScheme({
+      numberOfLevelZeroTilesX: 1,
+    });
     const rectangle = new WebMercatorTilingScheme().rectangle;
     const provider = new WebMapTileServiceImageryProvider({
       layer: "someLayer",
@@ -721,5 +724,412 @@ describe("Scene/WebMapTileServiceImageryProvider", function () {
         uri.query(objectToQuery(query));
         expect(lastUrl).toEqual(uri.toString());
       });
+  });
+
+  it("returns undefined if getFeatureInfoFormats is empty", function () {
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      getFeatureInfoFormats: [],
+    });
+
+    expect(provider.pickFeatures(0, 0, 0, 0.0, 0.0)).toBeUndefined();
+  });
+
+  it("returns undefined if enablePickFeatures is false", function () {
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+    });
+
+    provider.enablePickFeatures = false;
+    expect(provider.enablePickFeatures).toBe(false);
+    expect(provider.pickFeatures(0, 0, 0, 0.0, 0.0)).toBeUndefined();
+  });
+
+  it("initializes GetFeatureInfo picking wiring (KVP)", function () {
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+    });
+
+    expect(provider._resource).toBeDefined();
+    expect(provider._layer).toBeDefined();
+    expect(provider._style).toBeDefined();
+    expect(provider._tileMatrixSetID).toBeDefined();
+    expect(provider._pickFeaturesProvider).toBeDefined();
+    expect(provider._pickFeaturesProvider._pickFeaturesResource).toBeDefined();
+    expect(
+      provider._getFeatureInfoFormats && provider._getFeatureInfoFormats.length,
+    ).toBeGreaterThan(0);
+    expect(provider.enablePickFeatures).toBe(true);
+    expect(provider.getFeatureInfoUrl).toBeDefined();
+  });
+
+  it("initializes GetFeatureInfo picking wiring (REST template)", function () {
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png",
+      tileMatrixSetID: "someTMS",
+    });
+
+    expect(provider._resource).toBeDefined();
+    expect(provider._layer).toBeDefined();
+    expect(provider._style).toBeDefined();
+    expect(provider._tileMatrixSetID).toBeDefined();
+    expect(provider._pickFeaturesProvider).toBeDefined();
+    expect(provider._pickFeaturesProvider._pickFeaturesResource).toBeDefined();
+    expect(
+      provider._getFeatureInfoFormats && provider._getFeatureInfoFormats.length,
+    ).toBeGreaterThan(0);
+    expect(provider.enablePickFeatures).toBe(true);
+    expect(provider.getFeatureInfoUrl).toBeDefined();
+  });
+
+  it("does not return undefined when enablePickFeatures is toggled to true", function () {
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+    });
+
+    provider.enablePickFeatures = false;
+
+    spyOn(Resource.prototype, "fetchJson").and.returnValue(
+      Promise.resolve({
+        type: "FeatureCollection",
+        features: [],
+      }),
+    );
+
+    provider.enablePickFeatures = true;
+    expect(provider.enablePickFeatures).toBe(true);
+
+    const pickPromise = provider.pickFeatures(0, 0, 0, 0.0, 0.0);
+    expect(pickPromise).toBeDefined();
+
+    return pickPromise.then(function (features) {
+      expect(Array.isArray(features)).toBe(true);
+      expect(features.length).toBe(0);
+    });
+  });
+
+  it("builds GetFeatureInfo request and parses JSON response", function () {
+    const tilingScheme = new GeographicTilingScheme({
+      numberOfLevelZeroTilesX: 1,
+    });
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      tileMatrixLabels: ["level-zero"],
+      tilingScheme: tilingScheme,
+      format: "image/png",
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      const url = this.getUrlComponent(true);
+      const uri = new Uri(url);
+      const params = queryToObject(uri.query());
+      expect(params.request).toBe("GetFeatureInfo");
+      expect(params.service).toBe("WMTS");
+      expect(params.version).toBe("1.0.0");
+      expect(params.layer).toBe("someLayer");
+      expect(params.style).toBe("someStyle");
+      expect(params.tilematrixset).toBe("someTMS");
+      expect(params.tilematrix).toBe("level-zero");
+      expect(params.tilecol).toBe("0");
+      expect(params.tilerow).toBe("0");
+      expect(params.i).toBe("128");
+      expect(params.j).toBe("128");
+      expect(params.infoformat).toBe("application/json");
+
+      return Promise.resolve({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [0, 0],
+            },
+            properties: {
+              name: "Feature name",
+            },
+          },
+        ],
+      });
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function (features) {
+      expect(Resource.prototype.fetchJson).toHaveBeenCalled();
+      expect(features.length).toBe(1);
+
+      const featureInfo = features[0];
+      expect(featureInfo).toBeInstanceOf(ImageryLayerFeatureInfo);
+      expect(featureInfo.name).toBe("Feature name");
+      expect(featureInfo.position.longitude).toBeCloseTo(0, 10);
+      expect(featureInfo.position.latitude).toBeCloseTo(0, 10);
+    });
+  });
+
+  it("uses getFeatureInfoUrl in options for picking", function () {
+    const featureUrl = "http://wmts.invalid/feature";
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      getFeatureInfoUrl: featureUrl,
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      const url = this.getUrlComponent(true);
+      expect(url.indexOf(featureUrl)).toBe(0);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function (features) {
+      expect(Array.isArray(features)).toBe(true);
+    });
+  });
+
+  it("includes dimensions in GetFeatureInfo KVP requests", function () {
+    let capturedUrl;
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      capturedUrl = this.getUrlComponent(true);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid/kvp",
+      tileMatrixSetID: "someTMS",
+      dimensions: { FOO: "BAR" },
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function () {
+      const uri = new Uri(capturedUrl);
+      const params = queryToObject(uri.query());
+      expect(params.FOO).toBe("BAR");
+    });
+  });
+
+  it("includes dimensions in GetFeatureInfo RESTful requests via template values", function () {
+    let capturedUrl;
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      capturedUrl = this.getUrlComponent(true);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid/{FOO}",
+      tileMatrixSetID: "someTMS",
+      dimensions: { FOO: "BAR" },
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function () {
+      expect(capturedUrl).toStartWith("http://wmts.invalid/BAR");
+    });
+  });
+
+  it("includes time-dynamic template values in GetFeatureInfo RESTful requests", function () {
+    let capturedUrl;
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      capturedUrl = this.getUrlComponent(true);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    const times = TimeIntervalCollection.fromIso8601({
+      iso8601: "2017-04-26/2017-04-30/P1D",
+      dataCallback: function (interval, index) {
+        return { Time: JulianDate.toIso8601(interval.start) };
+      },
+    });
+    const clock = new Clock({
+      currentTime: JulianDate.fromIso8601("2017-04-26"),
+      shouldAnimate: false,
+    });
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid/{Time}",
+      tileMatrixSetID: "someTMS",
+      clock: clock,
+      times: times,
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function () {
+      expect(decodeURIComponent(capturedUrl)).toContain(
+        "/2017-04-26T00:00:00Z",
+      );
+    });
+  });
+
+  it("applies getFeatureInfoParameters with lowercased keys", function () {
+    let capturedUrl;
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      capturedUrl = this.getUrlComponent(true);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      getFeatureInfoParameters: { CUSTOM_PARAM: "foo" },
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function () {
+      const uri = new Uri(capturedUrl);
+      const params = queryToObject(uri.query());
+      expect(params.custom_param).toBe("foo");
+    });
+  });
+
+  it("includes time-dynamic parameters in GetFeatureInfo requests", function () {
+    let capturedUrl;
+    spyOn(Resource.prototype, "fetchJson").and.callFake(function () {
+      capturedUrl = this.getUrlComponent(true);
+      return Promise.resolve({ type: "FeatureCollection", features: [] });
+    });
+
+    const times = TimeIntervalCollection.fromIso8601({
+      iso8601: "2017-04-26/2017-04-30/P1D",
+      dataCallback: function (interval, index) {
+        return { Time: JulianDate.toIso8601(interval.start) };
+      },
+    });
+    const clock = new Clock({
+      currentTime: JulianDate.fromIso8601("2017-04-26"),
+      shouldAnimate: false,
+    });
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      clock: clock,
+      times: times,
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("json")],
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function () {
+      const uri = new Uri(capturedUrl);
+      const params = queryToObject(uri.query());
+      expect(params.Time).toBe("2017-04-26T00:00:00Z");
+    });
+  });
+
+  it("sets correct infoformat for XML and HTML requests", function () {
+    const providerXml = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("xml")],
+    });
+
+    spyOn(Resource.prototype, "fetchXML").and.callFake(function () {
+      const url = this.getUrlComponent(true);
+      const uri = new Uri(url);
+      const params = queryToObject(uri.query());
+      expect(params.infoformat).toBe("text/xml");
+      const parser = new DOMParser();
+      return Promise.resolve(
+        parser.parseFromString("<Foo/>", "application/xml"),
+      );
+    });
+
+    const providerHtml = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      getFeatureInfoFormats: [new GetFeatureInfoFormat("html")],
+    });
+
+    spyOn(Resource.prototype, "fetchText").and.callFake(function () {
+      const url = this.getUrlComponent(true);
+      const uri = new Uri(url);
+      const params = queryToObject(uri.query());
+      expect(params.infoformat).toBe("text/html");
+      return Promise.resolve("<html><title>x</title></html>");
+    });
+
+    return providerXml
+      .pickFeatures(0, 0, 0, 0.0, 0.0)
+      .then(function () {
+        return providerHtml.pickFeatures(0, 0, 0, 0.0, 0.0);
+      })
+      .then(function () {
+        expect(true).toBe(true);
+      });
+  });
+
+  it("falls back to the next format when the first request fails", function () {
+    function fallbackProcessor(response) {
+      expect(response.custom).toBe(true);
+      const feature = new ImageryLayerFeatureInfo();
+      feature.name = "Fallback feature";
+      return [feature];
+    }
+
+    const formats = [
+      new GetFeatureInfoFormat("json"),
+      new GetFeatureInfoFormat("foo", "application/foo", fallbackProcessor),
+    ];
+
+    const provider = new WebMapTileServiceImageryProvider({
+      layer: "someLayer",
+      style: "someStyle",
+      url: "http://wmts.invalid",
+      tileMatrixSetID: "someTMS",
+      tilingScheme: new GeographicTilingScheme(),
+      getFeatureInfoFormats: formats,
+    });
+
+    spyOn(Resource.prototype, "fetchJson").and.returnValue(
+      Promise.reject(new Error("no json")),
+    );
+
+    spyOn(Resource.prototype, "fetch").and.callFake(function (options) {
+      const url = (options && options.url) || this.getUrlComponent(true);
+      const uri = new Uri(url);
+      const params = queryToObject(uri.query());
+      expect(params.infoformat).toBe("application/foo");
+      expect(options.responseType).toBe("application/foo");
+      return Promise.resolve({
+        custom: true,
+      });
+    });
+
+    return provider.pickFeatures(0, 0, 0, 0.0, 0.0).then(function (features) {
+      expect(Resource.prototype.fetchJson).toHaveBeenCalled();
+      expect(Resource.prototype.fetch).toHaveBeenCalled();
+      expect(features.length).toBe(1);
+      expect(features[0].name).toBe("Fallback feature");
+    });
   });
 });
