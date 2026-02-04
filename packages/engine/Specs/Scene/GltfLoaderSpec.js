@@ -128,8 +128,12 @@ describe(
       "./Data/Models/glTF-2.0/BoxAnisotropy/glTF/BoxAnisotropy.gltf";
     const clearcoatTestData =
       "./Data/Models/glTF-2.0/BoxClearcoat/glTF/BoxClearcoat.gltf";
+    const pointStyleTestData =
+      "./Data/Models/glTF-2.0/StyledPoints/points-r5-g8-b14-y10.gltf";
     const meshPrimitiveRestartTestData =
       "./Data/Models/glTF-2.0/MeshPrimitiveRestart/glTF/MeshPrimitiveRestart.gltf";
+    const edgeVisibilityTestData =
+      "./Data/Models/glTF-2.0/EdgeVisibility/glTF-Binary/EdgeVisibility.glb";
 
     let scene;
     const gltfLoaders = [];
@@ -4174,6 +4178,57 @@ describe(
       expect(clearcoatNormalTexture.texture.width).toBe(256);
     });
 
+    it("loads model with BENTLEY_materials_point_style extension", async function () {
+      const gltfLoader = await loadGltf(pointStyleTestData);
+
+      // The test model has 4 primitives with different materials. Let's verify they all exist.
+      const primitives = gltfLoader.components.nodes[0].primitives;
+      expect(primitives.length).toBe(4);
+
+      // Check that pointDiameter was loaded correctly for each material. Each primitive has a different diameter.
+      expect(primitives[0].material.pointDiameter).toBe(5);
+      expect(primitives[1].material.pointDiameter).toBe(8);
+      expect(primitives[2].material.pointDiameter).toBe(14);
+      expect(primitives[3].material.pointDiameter).toBe(10);
+    });
+
+    it("ignores BENTLEY_materials_point_style with invalid negative diameter", async function () {
+      function modifyGltf(gltf) {
+        // Set an invalid negative diameter (diameters must be >0).
+        gltf.materials[0].extensions.BENTLEY_materials_point_style.diameter =
+          -5;
+        return gltf;
+      }
+
+      const gltfLoader = await loadModifiedGltfAndTest(
+        pointStyleTestData,
+        undefined,
+        modifyGltf,
+      );
+
+      // The invalid negative diameter should be ignored; property should be undefined once the glTF is loaded.
+      const material = gltfLoader.components.nodes[0].primitives[0].material;
+      expect(material.pointDiameter).toBeUndefined();
+    });
+
+    it("floors BENTLEY_materials_point_style with non-integer diameter", async function () {
+      function modifyGltf(gltf) {
+        // Set a non-integer diameter (spec requires integers, but we floor as a best effort).
+        gltf.materials[0].extensions.BENTLEY_materials_point_style.diameter = 5.5;
+        return gltf;
+      }
+
+      const gltfLoader = await loadModifiedGltfAndTest(
+        pointStyleTestData,
+        undefined,
+        modifyGltf,
+      );
+
+      // Non-integer diameter should be floored to the nearest integer.
+      const material = gltfLoader.components.nodes[0].primitives[0].material;
+      expect(material.pointDiameter).toBe(5);
+    });
+
     it("loads model with EXT_mesh_primitive_restart extension", async function () {
       const gltf = await Resource.fetchJson({
         url: meshPrimitiveRestartTestData,
@@ -4259,6 +4314,132 @@ describe(
       const loadedPrimitives = gltfLoader.components.nodes[0]["primitives"];
 
       expect(loadedPrimitives.length).toBe(8);
+    });
+
+    it("loads model with EXT_mesh_primitive_edge_visibility extension", async function () {
+      const gltfLoader = await loadGltf(edgeVisibilityTestData);
+      const components = gltfLoader.components;
+      const scene = components.scene;
+
+      expect(scene).toBeDefined();
+      expect(scene.nodes).toBeDefined();
+      expect(scene.nodes.length).toBeGreaterThan(0);
+
+      const primitive = scene.nodes[0].primitives[0];
+      expect(primitive).toBeDefined();
+
+      expect(primitive.edgeVisibility).toBeDefined();
+      expect(primitive.edgeVisibility.visibility).toBeDefined();
+      expect(primitive.edgeVisibility.silhouetteNormals).toBeDefined();
+      expect(primitive.edgeVisibility.silhouetteNormals.length).toBeGreaterThan(
+        0,
+      );
+    });
+
+    it("processes edge visibility data correctly", async function () {
+      const gltfLoader = await loadGltf(edgeVisibilityTestData);
+      const components = gltfLoader.components;
+      const scene = components.scene;
+      const primitive = scene.nodes[0].primitives[0];
+
+      const edgeVisibility = primitive.edgeVisibility;
+      expect(edgeVisibility).toBeDefined();
+
+      const visibilityData = edgeVisibility.visibility;
+      expect(visibilityData).toBeDefined();
+      expect(visibilityData.length).toBeGreaterThan(0);
+
+      let hasValidVisibilityValues = false;
+      for (let i = 0; i < visibilityData.length; i++) {
+        const value = visibilityData[i];
+        if (value !== 0) {
+          hasValidVisibilityValues = true;
+          expect(value).toBeGreaterThanOrEqual(0);
+          expect(value).toBeLessThanOrEqual(255);
+        }
+      }
+      expect(hasValidVisibilityValues).toBe(true);
+    });
+
+    it("loads primitive without edge visibility extension", async function () {
+      const gltfLoader = await loadGltf(triangle);
+      const components = gltfLoader.components;
+      const scene = components.scene;
+      const primitive = scene.nodes[0].primitives[0];
+
+      expect(primitive.edgeVisibility).toBeUndefined();
+    });
+
+    it("validates edge visibility bitfield format", async function () {
+      const gltfLoader = await loadGltf(edgeVisibilityTestData);
+      const components = gltfLoader.components;
+      const scene = components.scene;
+      const primitive = scene.nodes[0].primitives[0];
+
+      const edgeVisibility = primitive.edgeVisibility;
+      expect(edgeVisibility).toBeDefined();
+      expect(edgeVisibility.visibility).toBeDefined();
+
+      const visibilityData = edgeVisibility.visibility;
+      expect(visibilityData.length).toBeGreaterThan(0);
+
+      let hasVisibleEdges = false;
+      for (let i = 0; i < visibilityData.length; i++) {
+        const byte = visibilityData[i];
+
+        for (let bit = 0; bit < 8; bit += 2) {
+          const edgeVisibility = (byte >> bit) & 0x3;
+          expect(edgeVisibility).toBeGreaterThanOrEqual(0);
+          expect(edgeVisibility).toBeLessThanOrEqual(3);
+          if (edgeVisibility === 1 || edgeVisibility === 2) {
+            hasVisibleEdges = true;
+          }
+        }
+      }
+      expect(hasVisibleEdges).toBe(true);
+    });
+
+    it("handles edge visibility silhouette normals", async function () {
+      const gltfLoader = await loadGltf(edgeVisibilityTestData);
+      const components = gltfLoader.components;
+      const scene = components.scene;
+      const primitive = scene.nodes[0].primitives[0];
+
+      const edgeVisibility = primitive.edgeVisibility;
+      expect(edgeVisibility).toBeDefined();
+      expect(edgeVisibility.silhouetteNormals).toBeDefined();
+
+      const silhouetteNormals = edgeVisibility.silhouetteNormals;
+      expect(silhouetteNormals.length).toBeGreaterThan(0);
+
+      for (let i = 0; i < silhouetteNormals.length; i++) {
+        const normal = silhouetteNormals[i];
+        expect(normal).toBeDefined();
+        expect(normal.x).toBeDefined();
+        expect(normal.y).toBeDefined();
+        expect(normal.z).toBeDefined();
+        expect(typeof normal.x).toBe("number");
+        expect(typeof normal.y).toBe("number");
+        expect(typeof normal.z).toBe("number");
+        expect(isNaN(normal.x)).toBe(false);
+        expect(isNaN(normal.y)).toBe(false);
+        expect(isNaN(normal.z)).toBe(false);
+      }
+    });
+
+    it("validates edge visibility data loading", async function () {
+      const gltfLoader = await loadGltf(edgeVisibilityTestData);
+      const primitive = gltfLoader.components.scene.nodes[0].primitives[0];
+
+      expect(primitive.edgeVisibility).toBeDefined();
+      expect(primitive.edgeVisibility.visibility).toBeDefined();
+      expect(primitive.edgeVisibility.visibility.length).toBeGreaterThan(0);
+
+      if (primitive.edgeVisibility.silhouetteNormals) {
+        expect(
+          primitive.edgeVisibility.silhouetteNormals.length,
+        ).toBeGreaterThanOrEqual(0);
+      }
     });
 
     it("parses copyright field", function () {
