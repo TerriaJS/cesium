@@ -1,6 +1,6 @@
 {
   "name": "terriajs-cesium-widgets",
-  "version": "14.3.0",
+  "version": "14.3.1",
   "description": "A widgets library for use with CesiumJS. CesiumJS is a JavaScript library for creating 3D globes and 2D maps in a web browser without a plugin.",
   "keywords": [
     "3D",
