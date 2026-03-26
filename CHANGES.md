@@ -4,6 +4,7 @@
 
 - Added `token`, `mapServerData`, and `parameters` properties to `ArcGisMapServerImageryProvider.ConstructorOptions`.
 - Added `Ion.defaultTokenMessage` to customize the credit message shown on the map when using default Ion token.
+- Added split terrain feature.
 
 ## 1.139.1 - 2026-03-05
 
