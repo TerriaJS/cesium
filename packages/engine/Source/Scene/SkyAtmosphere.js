@@ -317,8 +317,10 @@ SkyAtmosphere.prototype.update = function (frameState, globe) {
     this.splitDirection === 0 ? 0 : this.splitDirection < 0.0 ? 1 : 2;
 
   const flags =
-    colorCorrect | (perFragmentAtmosphere << 2) | (translucent << 3) ||
-    splitDirectionFlag << 4;
+    colorCorrect |
+    (perFragmentAtmosphere << 2) |
+    (translucent << 3) |
+    (splitDirectionFlag << 4);
 
   if (flags !== this._flags) {
     this._flags = flags;
