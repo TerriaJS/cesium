@@ -199,7 +199,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
       (translucent << 31)) >>>
       0) +
     (applyDayNightAlpha ? 0x100000000 : 0) +
-    (splitTerrain ? 0x1000000000 : 0);
+    (splitTerrain ? 0x200000000 : 0);
 
   let currentClippingShaderState = 0;
   if (defined(clippingPlanes) && clippingPlanes.length > 0) {
