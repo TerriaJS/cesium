@@ -134,6 +134,7 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
   const hasExaggeration = options.hasExaggeration;
   const showUndergroundColor = options.showUndergroundColor;
   const translucent = options.translucent;
+  const splitTerrain = options.splitTerrain;
 
   let quantization = 0;
   let quantizationDefine = "";
@@ -197,7 +198,8 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
       (showUndergroundColor << 30) |
       (translucent << 31)) >>>
       0) +
-    (applyDayNightAlpha ? 0x100000000 : 0);
+    (applyDayNightAlpha ? 0x100000000 : 0) +
+    (splitTerrain ? 0x200000000 : 0);
 
   let currentClippingShaderState = 0;
   if (defined(clippingPlanes) && clippingPlanes.length > 0) {
@@ -380,6 +382,10 @@ GlobeSurfaceShaderSet.prototype.getShaderProgram = function (options) {
 
     if (hasExaggeration) {
       vs.defines.push("EXAGGERATION");
+    }
+
+    if (splitTerrain) {
+      fs.defines.push("SPLIT_TERRAIN");
     }
 
     let computeDayColor =
