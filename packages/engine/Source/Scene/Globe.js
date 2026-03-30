@@ -27,6 +27,7 @@ import ImageryLayerCollection from "./ImageryLayerCollection.js";
 import QuadtreePrimitive from "./QuadtreePrimitive.js";
 import SceneMode from "./SceneMode.js";
 import ShadowMode from "./ShadowMode.js";
+import SplitDirection from "./SplitDirection.js";
 import CesiumMath from "../Core/Math.js";
 import VectorProvider from "../Core/VectorProvider.js";
 
@@ -377,6 +378,15 @@ function Globe(ellipsoid) {
    * @default 0.3
    */
   this.vertexShadowDarkness = 0.3;
+
+  /**
+   * The {@link SplitDirection} to apply, showing the terrain only on
+   * the left or right of the splitter control.
+   *
+   * @type {SplitDirection}
+   * @default {@link SplitDirection.NONE}
+   */
+  this.splitDirection = SplitDirection.NONE;
 }
 
 Object.defineProperties(Globe.prototype, {
@@ -1075,6 +1085,7 @@ Globe.prototype.beginFrame = function (frameState) {
     tileProvider.undergroundColorAlphaByDistance =
       this._undergroundColorAlphaByDistance;
     tileProvider.lambertDiffuseMultiplier = this.lambertDiffuseMultiplier;
+    tileProvider.splitDirection = this.splitDirection;
 
     surface.beginFrame(frameState);
   }
