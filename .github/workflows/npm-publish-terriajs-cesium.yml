@@ -1,0 +1,142 @@
+name: npm-publish-terriajs-cesium
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag to publish under (e.g. latest, alpha, beta, next)"
+        required: false
+        default: "latest"
+        type: string
+      dry-run:
+        description: "Validate without publishing"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect packages to publish
+        id: detect
+        run: |
+          ENGINE_LOCAL=$(node -p "require('./packages/engine/package.json').version")
+          WIDGETS_LOCAL=$(node -p "require('./packages/widgets/package.json').version")
+
+          echo "Engine local version: $ENGINE_LOCAL"
+          echo "Widgets local version: $WIDGETS_LOCAL"
+
+          ENGINE_PUBLISHED=$(npm view terriajs-cesium versions --json 2>/dev/null || echo "[]")
+          WIDGETS_PUBLISHED=$(npm view terriajs-cesium-widgets versions --json 2>/dev/null || echo "[]")
+
+          PUBLISH_ENGINE="false"
+          if echo "$ENGINE_PUBLISHED" | node -e "
+            const versions = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            process.exit(versions.includes('$ENGINE_LOCAL') ? 0 : 1);
+          " 2>/dev/null; then
+            echo "terriajs-cesium@$ENGINE_LOCAL is already published"
+          else
+            echo "terriajs-cesium@$ENGINE_LOCAL needs publishing"
+            PUBLISH_ENGINE="true"
+          fi
+
+          PUBLISH_WIDGETS="false"
+          if echo "$WIDGETS_PUBLISHED" | node -e "
+            const versions = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            process.exit(versions.includes('$WIDGETS_LOCAL') ? 0 : 1);
+          " 2>/dev/null; then
+            echo "terriajs-cesium-widgets@$WIDGETS_LOCAL is already published"
+          else
+            echo "terriajs-cesium-widgets@$WIDGETS_LOCAL needs publishing"
+            PUBLISH_WIDGETS="true"
+          fi
+
+          if [ "$PUBLISH_ENGINE" = "false" ] && [ "$PUBLISH_WIDGETS" = "false" ]; then
+            echo "::error::No packages need publishing. All local versions already exist on npm."
+            exit 1
+          fi
+
+          echo "publish-engine=$PUBLISH_ENGINE" >> "$GITHUB_OUTPUT"
+          echo "publish-widgets=$PUBLISH_WIDGETS" >> "$GITHUB_OUTPUT"
+          echo "engine-version=$ENGINE_LOCAL" >> "$GITHUB_OUTPUT"
+          echo "widgets-version=$WIDGETS_LOCAL" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Prepare workspaces
+        run: npm run prepare
+
+      - name: Check linting
+        run: npm run eslint
+
+      - name: Build for release
+        run: npm run release
+
+      - name: Publish terriajs-cesium
+        if: steps.detect.outputs.publish-engine == 'true' && inputs.dry-run == false
+        run: |
+          echo "Publishing terriajs-cesium@${{ steps.detect.outputs.engine-version }} with tag '${{ inputs.tag }}'"
+          npm publish -w terriajs-cesium --access public --tag ${{ inputs.tag }} --provenance
+
+      - name: Set widgets engine dependency for publish
+        if: steps.detect.outputs.publish-widgets == 'true'
+        run: |
+          sed -i'' -e 's|"@cesium/engine": "file:../engine"|"@cesium/engine": "npm:terriajs-cesium@^${{ steps.detect.outputs.engine-version }}"|' packages/widgets/package.json
+          echo "Updated widgets @cesium/engine dependency to npm:terriajs-cesium@^${{ steps.detect.outputs.engine-version }}"
+
+      - name: Publish terriajs-cesium-widgets
+        if: steps.detect.outputs.publish-widgets == 'true' && inputs.dry-run == false
+        run: |
+          echo "Publishing terriajs-cesium-widgets@${{ steps.detect.outputs.widgets-version }} with tag '${{ inputs.tag }}'"
+          npm publish -w terriajs-cesium-widgets --access public --tag ${{ inputs.tag }} --provenance
+
+      - name: Dry run summary
+        if: inputs.dry-run == true
+        run: |
+          echo "## Dry Run Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.detect.outputs.publish-engine }}" = "true" ]; then
+            echo "- **terriajs-cesium@${{ steps.detect.outputs.engine-version }}** would be published with tag \`${{ inputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ steps.detect.outputs.publish-widgets }}" = "true" ]; then
+            echo "- **terriajs-cesium-widgets@${{ steps.detect.outputs.widgets-version }}** would be published with tag \`${{ inputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Tag published versions
+        if: inputs.dry-run == false && inputs.tag == 'latest'
+        run: |
+          git config user.name "Terria Bot via GitHub Actions"
+          git config user.email "TerriaBot@users.noreply.github.com"
+
+          if [ "${{ steps.detect.outputs.publish-engine }}" = "true" ]; then
+            git tag -a "terriajs-cesium-v${{ steps.detect.outputs.engine-version }}" -m "terriajs-cesium v${{ steps.detect.outputs.engine-version }}"
+            echo "Tagged terriajs-cesium-v${{ steps.detect.outputs.engine-version }}"
+          fi
+
+          if [ "${{ steps.detect.outputs.publish-widgets }}" = "true" ]; then
+            git tag -a "terriajs-cesium-widgets-v${{ steps.detect.outputs.widgets-version }}" -m "terriajs-cesium-widgets v${{ steps.detect.outputs.widgets-version }}"
+            echo "Tagged terriajs-cesium-widgets-v${{ steps.detect.outputs.widgets-version }}"
+          fi
+
+          git push origin --tags
