@@ -1,4 +1,4 @@
-name: npm-publish-terriajs
+name: npm-publish-terriajs-cesium
 
 on:
   workflow_dispatch:
