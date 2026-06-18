@@ -30,6 +30,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
 
       - name: Detect packages to publish
         id: detect
@@ -75,12 +81,6 @@ jobs:
           echo "engine-version=$ENGINE_LOCAL" >> "$GITHUB_OUTPUT"
           echo "widgets-version=$WIDGETS_LOCAL" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-
       - name: Install dependencies
         run: npm install --ignore-scripts
 
@@ -98,8 +98,6 @@ jobs:
         run: |
           echo "Publishing terriajs-cesium@${{ steps.detect.outputs.engine-version }} with tag '${{ inputs.tag }}'"
           npm publish -w terriajs-cesium --access public --tag ${{ inputs.tag }} --provenance
-        env:
-          NODE_AUTH_TOKEN: ""
 
       - name: Set widgets engine dependency for publish
         if: steps.detect.outputs.publish-widgets == 'true'
@@ -112,8 +110,6 @@ jobs:
         run: |
           echo "Publishing terriajs-cesium-widgets@${{ steps.detect.outputs.widgets-version }} with tag '${{ inputs.tag }}'"
           npm publish -w terriajs-cesium-widgets --access public --tag ${{ inputs.tag }} --provenance
-        env:
-          NODE_AUTH_TOKEN: ""
 
       - name: Dry run summary
         if: inputs.dry-run == true
