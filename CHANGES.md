@@ -2,6 +2,7 @@
 
 ### terriajs-cesium only
 
+- Backported [CesiumJS #13494](https://github.com/CesiumGS/cesium/pull/13494) to keep terrain height cache entries independent, preventing repeated terrain-clamped points from inheriting another point's height. Related to [TerriaJS #7949](https://github.com/TerriaJS/terriajs/issues/7949).
 - Added `token`, `mapServerData`, and `parameters` properties to `ArcGisMapServerImageryProvider.ConstructorOptions`.
 - Added `Ion.defaultTokenMessage` to customize the credit message shown on the map when using default Ion token.
 - Added split terrain feature.
